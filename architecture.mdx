@@ -1,0 +1,598 @@
+---
+title: System Architecture
+description: Understanding DRAIT Mini-MES architecture, components, and data flow
+---
+
+DRAIT Mini-MES is a full-stack Manufacturing Execution System designed for metalworking workshops. This page explains the system's architecture, component interaction, and data flow.
+
+## Architecture Overview
+
+DRAIT uses a modern microservices architecture orchestrated with Docker Compose:
+
+```mermaid
+graph TB
+    Client[Web Browser] --> Nginx[Nginx Reverse Proxy :80]
+    Nginx --> Frontend[React Frontend :80]
+    Nginx --> Backend[NestJS Backend :3000]
+    Backend --> Database[(PostgreSQL :5432)]
+    
+    style Client fill:#e1f5ff
+    style Nginx fill:#fff3e0
+    style Frontend fill:#e8f5e9
+    style Backend fill:#f3e5f5
+    style Database fill:#fce4ec
+```
+
+## Technology Stack
+
+<CardGroup cols={2}>
+  <Card title="Frontend" icon="react">
+    - **React 18** - UI library with concurrent rendering
+    - **TypeScript** - Type safety and developer experience
+    - **Vite** - Fast build tool and dev server
+    - **React Router 6** - Client-side routing
+    - **TanStack Query** - Server state management
+    - **Recharts** - Data visualization for reports
+    - **Axios** - HTTP client with interceptors
+  </Card>
+  
+  <Card title="Backend" icon="server">
+    - **NestJS** - Progressive Node.js framework
+    - **TypeScript** - Type-safe API development
+    - **Prisma** - Modern ORM with type generation
+    - **JWT** - Stateless authentication
+    - **@nestjs/throttler** - Rate limiting
+    - **class-validator** - Request validation
+    - **bcrypt** - Password hashing
+  </Card>
+  
+  <Card title="Database" icon="database">
+    - **PostgreSQL 16** - Relational database
+    - **Prisma Client** - Type-safe query builder
+    - **Migrations** - Version-controlled schema
+    - **Alpine Linux** - Minimal container image
+  </Card>
+  
+  <Card title="Infrastructure" icon="docker">
+    - **Docker** - Containerization platform
+    - **Docker Compose** - Multi-container orchestration
+    - **Nginx** - Reverse proxy and load balancer
+    - **Node 20 Alpine** - Optimized runtime images
+  </Card>
+</CardGroup>
+
+## Component Architecture
+
+### Frontend Structure
+
+The React frontend follows a feature-based architecture:
+
+```
+frontend/src/
+├── app/
+│   ├── providers/      # React Query, Auth Context
+│   └── router/         # Route configuration
+├── features/
+│   ├── auth/           # Login, session management
+│   ├── dashboard/      # KPI dashboard
+│   ├── clients/        # Client CRUD
+│   ├── quotations/     # Quotation management
+│   ├── work-orders/    # Work order lifecycle
+│   ├── resources/      # Machine & operator management
+│   ├── materials/      # Inventory management
+│   ├── operator/       # Operator shift view
+│   ├── reports/        # Productivity reports
+│   ├── users/          # User management
+│   └── audit/          # Audit log viewer
+└── shared/
+    ├── api/            # Axios HTTP client
+    ├── components/     # Reusable UI components
+    └── layouts/        # Page layouts
+```
+
+<Info>
+  Each feature is self-contained with its own components, hooks, and API calls, making the codebase modular and maintainable.
+</Info>
+
+### Backend Module Architecture
+
+The NestJS backend uses a modular architecture defined in `apps/backend/src/app.module.ts`:
+
+```typescript
+@Module({
+  imports: [
+    ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 20 }]),
+    PrismaModule,
+    AuthModule,
+    CompaniesModule,
+    UsersModule,
+    ClientsModule,
+    QuotationsModule,
+    WorkOrdersModule,
+    ResourcesModule,
+    OperationLogsModule,
+    MaterialsModule,
+    ReportsModule,
+    AuditModule
+  ]
+})
+export class AppModule {}
+```
+
+Each module encapsulates:
+- **Controller** - HTTP endpoints and request validation
+- **Service** - Business logic and Prisma queries
+- **DTOs** - Request/response data structures
+- **Guards** - Authentication and authorization
+
+### Database Schema
+
+The Prisma schema defines 14 core entities with complete traceability:
+
+<Accordion title="Core Entities">
+
+**Company** - Multi-tenant isolation
+```prisma
+model Company {
+  id          String     @id @default(cuid())
+  name        String
+  legalName   String?
+  taxId       String?
+  settings    Json?
+  isActive    Boolean    @default(true)
+  users       User[]
+  clients     Client[]
+  workOrders  WorkOrder[]
+  resources   Resource[]
+  materials   Material[]
+}
+```
+
+**User** - System users with role-based access
+```prisma
+model User {
+  id           String   @id @default(cuid())
+  companyId    String
+  email        String
+  fullName     String
+  passwordHash String
+  role         UserRole // DUENO, SUPERVISOR, OPERARIO, ADMIN
+  isActive     Boolean  @default(true)
+}
+```
+
+**Client** - Workshop clients
+```prisma
+model Client {
+  id         String      @id @default(cuid())
+  companyId  String
+  name       String
+  contact    String?
+  phone      String?
+  email      String?
+  quotations Quotation[]
+  workOrders WorkOrder[]
+}
+```
+
+**Quotation** - Price quotes with line items
+```prisma
+model Quotation {
+  id                 String          @id @default(cuid())
+  code               String          // Q-2026-001
+  title              String
+  estimatedTimeMin   Int
+  estimatedCost      Decimal
+  status             QuotationStatus // BORRADOR, ENVIADO, APROBADO, RECHAZADO
+  items              QuotationItem[]
+  workOrders         WorkOrder[]     // Converted to work orders
+}
+```
+
+**WorkOrder** - Core production entity
+```prisma
+model WorkOrder {
+  id                   String               @id @default(cuid())
+  code                 String               // OT-2026-001
+  status               WorkOrderStatus      // PENDIENTE, EN_PROCESO, FINALIZADA, etc.
+  priority             Int                  @default(3)
+  plannedDate          DateTime?
+  commitmentDate       DateTime?
+  startedAt            DateTime?
+  finishedAt           DateTime?
+  assignments          WorkOrderAssignment[]
+  operationLogs        OperationLog[]
+  materialConsumptions MaterialConsumption[]
+}
+```
+
+**Resource** - Machines and operators
+```prisma
+model Resource {
+  id       String         @id @default(cuid())
+  type     ResourceType   // HUMANO, MAQUINA
+  name     String
+  status   ResourceStatus // DISPONIBLE, OCUPADO, MANTENIMIENTO
+  sector   String?
+}
+```
+
+**Material** - Inventory items
+```prisma
+model Material {
+  id           String                @id @default(cuid())
+  name         String
+  category     String?
+  unit         String                // kg, m, units
+  unitCost     Decimal
+  stock        Decimal               @default(0)
+  consumptions MaterialConsumption[]
+  movements    MaterialMovement[]
+}
+```
+
+</Accordion>
+
+<Accordion title="Traceability Entities">
+
+**OperationLog** - Event tracking
+```prisma
+model OperationLog {
+  id          String             @id @default(cuid())
+  workOrderId String
+  eventType   OperationEventType // INICIO, PAUSA, FINALIZACION, NOTA
+  eventAt     DateTime
+  pauseReason String?
+  note        String?
+}
+```
+
+**MaterialConsumption** - Material usage per work order
+```prisma
+model MaterialConsumption {
+  id               String  @id @default(cuid())
+  workOrderId      String
+  materialId       String
+  quantity         Decimal
+  unitCostSnapshot Decimal // Frozen cost at consumption time
+  consumedAt       DateTime
+}
+```
+
+**AuditLog** - System-wide audit trail
+```prisma
+model AuditLog {
+  id         String          @id @default(cuid())
+  entityType AuditEntityType // WORK_ORDER, USER, CLIENT, etc.
+  entityId   String
+  action     AuditActionType // CREATE, UPDATE, DELETE, STATUS_CHANGE
+  before     Json?
+  after      Json?
+  createdAt  DateTime
+}
+```
+
+</Accordion>
+
+## Data Flow
+
+### Authentication Flow
+
+<Steps>
+  <Step title="User submits credentials">
+    User enters email and password on the login page at `/login`.
+  </Step>
+  
+  <Step title="Frontend sends POST request">
+    The login form sends a POST request to `/api/auth/login`:
+    
+    ```typescript
+    // frontend/src/features/auth/session.ts
+    const response = await api.post('/auth/login', {
+      email: 'owner@drait.local',
+      password: 'ChangeMe123!'
+    });
+    ```
+  </Step>
+  
+  <Step title="Backend validates and issues JWT">
+    The AuthModule validates credentials and returns a JWT token:
+    
+    ```typescript
+    // backend/src/modules/auth/auth.service.ts
+    const payload = { sub: user.id, email: user.email, role: user.role };
+    const access_token = this.jwtService.sign(payload);
+    return { access_token, user };
+    ```
+  </Step>
+  
+  <Step title="Frontend stores token">
+    The token is stored in localStorage and attached to all subsequent requests:
+    
+    ```typescript
+    // frontend/src/shared/api/http.ts
+    api.interceptors.request.use((config) => {
+      const token = getAccessToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    });
+    ```
+  </Step>
+  
+  <Step title="Protected routes verify JWT">
+    All protected API endpoints use `JwtAuthGuard` and `RolesGuard` to verify tokens and check permissions.
+  </Step>
+</Steps>
+
+### Work Order Lifecycle Flow
+
+Here's how a work order moves through the system:
+
+```mermaid
+sequenceDiagram
+    participant S as Supervisor
+    participant F as Frontend
+    participant B as Backend
+    participant D as Database
+    participant O as Operator
+
+    S->>F: Create Quotation
+    F->>B: POST /api/quotations
+    B->>D: Insert Quotation + Items
+    
+    S->>F: Convert to Work Order
+    F->>B: POST /api/work-orders/from-quotation/:id
+    B->>D: Insert WorkOrder (status: PENDIENTE)
+    
+    S->>F: Assign Resources
+    F->>B: POST /api/work-orders/:id/assignments
+    B->>D: Insert WorkOrderAssignment
+    B->>D: Update Resource (status: OCUPADO)
+    B->>D: Insert OperationLog (ASIGNADO)
+    
+    O->>F: Start Work Order
+    F->>B: POST /api/work-orders/:id/events
+    B->>D: Update WorkOrder (status: EN_PROCESO)
+    B->>D: Insert OperationLog (INICIO)
+    
+    O->>F: Register Material Consumption
+    F->>B: POST /api/work-orders/:id/consumptions
+    B->>D: Insert MaterialConsumption
+    B->>D: Update Material (stock -= quantity)
+    B->>D: Insert MaterialMovement (CONSUMO)
+    
+    O->>F: Complete Work Order
+    F->>B: PATCH /api/work-orders/:id/status
+    B->>D: Update WorkOrder (status: FINALIZADA)
+    B->>D: Insert OperationLog (FINALIZACION)
+    B->>D: Update Resource (status: DISPONIBLE)
+```
+
+### Request/Response Pipeline
+
+Every API request goes through this pipeline:
+
+1. **Nginx Reverse Proxy** (`/api/*` → `drait-backend:3000`)
+2. **NestJS Global Prefix** (`/api`)
+3. **Rate Limiting** (Throttler: 20 requests/minute)
+4. **CORS Check** (Origin validation)
+5. **JWT Authentication** (JwtAuthGuard)
+6. **Role Authorization** (RolesGuard)
+7. **Request Validation** (class-validator DTOs)
+8. **Controller Handler** (Business logic)
+9. **Prisma Query** (Type-safe database access)
+10. **Response Serialization** (JSON)
+
+## Security Architecture
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="lock">
+    - JWT tokens with 8-hour expiration
+    - Bcrypt password hashing (10 rounds)
+    - Automatic 401 handling and logout
+    - Token stored in localStorage
+  </Card>
+  
+  <Card title="Authorization" icon="shield-halved">
+    - Role-based access control (RBAC)
+    - Four roles: DUENO, SUPERVISOR, OPERARIO, ADMIN
+    - Route-level protection with `RolesGuard`
+    - Frontend route guards via `ProtectedRoute`
+  </Card>
+  
+  <Card title="Data Validation" icon="check-double">
+    - Request DTOs with class-validator
+    - Whitelist mode (strips unknown properties)
+    - Transform mode (automatic type coercion)
+    - Prisma schema constraints
+  </Card>
+  
+  <Card title="Multi-tenancy" icon="building">
+    - Company-level data isolation
+    - All queries filtered by `companyId`
+    - Cascade deletes within tenant
+    - Restrict deletes across tenants
+  </Card>
+</CardGroup>
+
+## Deployment Architecture
+
+DRAIT uses a containerized deployment with Docker Compose:
+
+### Container Network
+
+```yaml
+services:
+  drait-db:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U drait -d drait_mes"]
+
+  drait-backend:
+    build: ./apps/backend
+    depends_on:
+      drait-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://drait:drait123@drait-db:5432/drait_mes
+
+  drait-frontend:
+    build: ./apps/frontend
+    environment:
+      VITE_API_BASE_URL: /api
+
+  drait-nginx:
+    image: nginx:1.27-alpine
+    depends_on:
+      - drait-backend
+      - drait-frontend
+    ports:
+      - "80:80"
+```
+
+### Build Process
+
+**Backend Build** (Multi-stage Dockerfile):
+1. Install dependencies with npm
+2. Generate Prisma Client
+3. Compile TypeScript to JavaScript
+4. Copy artifacts to production image
+5. Expose port 3000
+
+**Frontend Build** (Multi-stage Dockerfile):
+1. Install dependencies with npm
+2. Build Vite production bundle
+3. Copy static files to Nginx
+4. Expose port 80
+
+<Info>
+  Both containers use Node 20 Alpine images for minimal size and security surface.
+</Info>
+
+## Performance Considerations
+
+<Accordion title="Database Optimization">
+  - Strategic indexes on `companyId`, `status`, `createdAt`
+  - Composite indexes for common queries
+  - Connection pooling via Prisma
+  - `@@unique` constraints for business logic
+  - Cascading deletes to maintain referential integrity
+</Accordion>
+
+<Accordion title="API Performance">
+  - Rate limiting: 20 requests/minute per IP
+  - Request timeout: 15 seconds
+  - Global validation pipe for early rejection
+  - Stateless JWT (no database lookup per request)
+  - Health check endpoint for monitoring
+</Accordion>
+
+<Accordion title="Frontend Performance">
+  - React 18 concurrent rendering
+  - TanStack Query caching and deduplication
+  - Lazy loading of routes (code splitting)
+  - Vite HMR for fast development
+  - Production build optimization
+</Accordion>
+
+## Monitoring and Observability
+
+DRAIT includes built-in traceability:
+
+<CardGroup cols={2}>
+  <Card title="Operation Logs" icon="clock-rotate-left">
+    Every work order event is logged with:
+    - Event type (START, PAUSE, FINISH)
+    - Timestamp
+    - Associated user and resource
+    - Optional notes
+  </Card>
+  
+  <Card title="Audit Logs" icon="file-shield">
+    System-wide audit trail captures:
+    - Entity type and ID
+    - Action performed
+    - Before/after state (JSON)
+    - User and timestamp
+  </Card>
+  
+  <Card title="Material Traceability" icon="warehouse">
+    Full inventory tracking:
+    - Stock movements (entry, adjustment, consumption)
+    - Cost snapshot at consumption time
+    - Work order linkage
+  </Card>
+  
+  <Card title="Health Checks" icon="heart-pulse">
+    Container health monitoring:
+    - Database: `pg_isready` check
+    - Backend: HTTP status endpoint
+    - Docker Compose automatic restarts
+  </Card>
+</CardGroup>
+
+## Extension Points
+
+DRAIT is designed for extensibility:
+
+<Steps>
+  <Step title="Add New Modules">
+    Create a new NestJS module in `apps/backend/src/modules/` and import it in `app.module.ts`:
+    
+    ```bash
+    nest generate module notifications
+    nest generate service notifications
+    nest generate controller notifications
+    ```
+  </Step>
+  
+  <Step title="Add Frontend Features">
+    Create a new feature directory in `apps/frontend/src/features/` with its own components and API calls:
+    
+    ```
+    features/notifications/
+    ├── NotificationsPage.tsx
+    ├── NotificationList.tsx
+    └── useNotifications.ts
+    ```
+  </Step>
+  
+  <Step title="Extend Database Schema">
+    Add new models to `prisma/schema.prisma` and create migrations:
+    
+    ```bash
+    docker compose exec drait-backend npm run prisma:migrate:dev
+    ```
+  </Step>
+  
+  <Step title="Add External Integrations">
+    Integrate with external services (email, WhatsApp, ERP) via new backend modules with environment configuration.
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="code" href="/api/introduction">
+    Explore all available REST endpoints and data models
+  </Card>
+  
+  <Card title="Audit & Traceability" icon="clock-rotate-left" href="/features/audit-traceability">
+    Understand role-based permissions and audit logging
+  </Card>
+  
+  <Card title="Work Order Flow" icon="diagram-project" href="/features/work-orders">
+    Deep dive into the work order lifecycle
+  </Card>
+  
+  <Card title="API Reference" icon="plug" href="/api/introduction">
+    Learn how to integrate DRAIT with external systems
+  </Card>
+</CardGroup>

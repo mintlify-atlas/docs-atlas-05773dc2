@@ -1,0 +1,462 @@
+---
+title: Operator User Manual
+description: Complete guide for workshop operators
+icon: hard-hat
+---
+
+<Info>
+**Role:** Operator  
+**Access:** Only the "My Shift" screen  
+**What You Can Do:** View assigned orders, register your work, and log materials used
+</Info>
+
+## How to Access the System
+
+<Steps>
+  <Step title="Open the browser">
+    Open your web browser and enter the address given by your supervisor
+    
+    Example: `http://192.168.1.10` or `https://mes.yourworkshop.com`
+  </Step>
+  <Step title="Enter credentials">
+    Type your **email** and **password** on the login screen
+  </Step>
+  <Step title="Click Login">
+    Click **"Login"** to access the system
+  </Step>
+</Steps>
+
+<Tip>
+If you forgot your password, ask the owner or supervisor to reset it for you.
+</Tip>
+
+---
+
+## Main Screen — "My Shift"
+
+When you log in, you see the **"My Shift"** screen.
+
+This shows **only the work orders assigned to you**.
+
+### What You'll See
+
+Each work order card displays:
+
+- **Code** (e.g., `OT-0042`)
+- **Title** of the job
+- **Client** name
+- **Status** badge with color
+- **Delivery date** committed to the client
+- **Action buttons** (Start, Pause, Finish)
+
+<Note>
+You will NOT see orders assigned to other operators — only your own work.
+</Note>
+
+---
+
+## Work Order Statuses and Colors
+
+Each status has a specific color to help you quickly identify what action is needed:
+
+| Status | Color | Meaning |
+|--------|-------|----------|
+| **PLANNED** | Blue | You've been assigned this order, but haven't started yet |
+| **PENDING** | Gray | Waiting for you to begin |
+| **IN PROCESS** | Green | You're currently working on it |
+| **PAUSED** | Red | You temporarily stopped work |
+| **FINISHED** | Dark Green | Work completed |
+
+---
+
+## Step-by-Step: How to Work an Order
+
+### ▶ Step 1 — Starting a Work Order
+
+<Steps>
+  <Step title="Find the order">
+    Locate the work order in your "My Shift" list
+  </Step>
+  <Step title="Verify status">
+    Make sure the status is **PLANNED** or **PENDING**
+  </Step>
+  <Step title="Click Start">
+    Click the **▶ Start** button
+  </Step>
+  <Step title="Status changes">
+    The status changes to **IN PROCESS** (green) ✅
+    
+    The system records the exact start time automatically.
+  </Step>
+</Steps>
+
+<Warning>
+You can only start ONE work order at a time. If you already have one in process, the supervisor must manage the transition.
+</Warning>
+
+---
+
+### ⏸ Step 2 — Pausing (If You Need to Stop)
+
+If you need to stop temporarily (lunch break, material shortage, etc.):
+
+<Steps>
+  <Step title="Find the active order">
+    Locate the work order that's **IN PROCESS**
+  </Step>
+  <Step title="Click Pause">
+    Click the **⏸ Pause** button
+  </Step>
+  <Step title="Status changes to Paused">
+    The status changes to **PAUSED** (red)
+    
+    The system logs the pause time.
+  </Step>
+</Steps>
+
+#### Resuming a Paused Order
+
+<Steps>
+  <Step title="Find the paused order">
+    Locate the order with **PAUSED** status (red badge)
+  </Step>
+  <Step title="Click Resume">
+    Click the **▶ Resume** button
+  </Step>
+  <Step title="Back to In Process">
+    The status returns to **IN PROCESS** (green)
+    
+    You can continue working.
+  </Step>
+</Steps>
+
+---
+
+### ✅ Step 3 — Finishing a Work Order
+
+When you complete the work:
+
+<Steps>
+  <Step title="Review your work">
+    Make sure the job is actually finished according to specifications
+  </Step>
+  <Step title="Click Finish">
+    Click the **✅ Finish** button
+  </Step>
+  <Step title="Optional: Add closing note">
+    A confirmation dialog appears. You can add a **closing note** (optional)
+    
+    Example: "Finished according to specification" or "Minor adjustment made to tolerance"
+  </Step>
+  <Step title="Confirm">
+    Click **"Confirm"**
+  </Step>
+  <Step title="Order marked finished">
+    The system records the exact finish time. The order moves to **FINISHED** status.
+  </Step>
+</Steps>
+
+<Warning>
+Make sure to finish the order only when the work is **truly complete**. This time is used for productivity calculations and client billing.
+</Warning>
+
+---
+
+## Registering Material Consumption
+
+While a work order is **IN PROCESS**, you can register materials you've used:
+
+<Steps>
+  <Step title="Expand the order details">
+    Click **"📦 Materials and Notes"** button next to the work order
+  </Step>
+  <Step title="Find the Register Consumption section">
+    Scroll to the **"📦 Register Consumption"** panel
+  </Step>
+  <Step title="Select the material">
+    Use the dropdown to search for the material (e.g., "steel rod", "paint", "welding wire")
+    
+    The dropdown shows current stock levels.
+  </Step>
+  <Step title="Enter quantity">
+    Type the **quantity** you used (e.g., 2.5 meters, 10 units)
+  </Step>
+  <Step title="Optional: Add observation">
+    Add a note if needed (e.g., "Used extra due to initial defect")
+  </Step>
+  <Step title="Click Register">
+    Click **"+ Register Physical Consumption"**
+  </Step>
+  <Step title="Consumption saved">
+    The material consumption is recorded with timestamp and appears in the list below
+  </Step>
+</Steps>
+
+<Info>
+Registering materials is very important because it allows the supervisor and owner to know the **real cost** of the job.
+</Info>
+
+### Viewing Registered Consumptions
+
+Below the registration form, you'll see a list of **"Previously registered consumptions"** showing:
+
+- Time of consumption
+- Material name
+- Quantity with unit
+
+---
+
+## Adding Notes or Comments
+
+You can leave notes about a work order at any time:
+
+<Steps>
+  <Step title="Expand order details">
+    Click **"📦 Materials and Notes"** for the work order
+  </Step>
+  <Step title="Go to Operations Log section">
+    Find the **"💬 Operations Log and Updates"** panel
+  </Step>
+  <Step title="Write your comment">
+    In the text area, type your note
+    
+    Example: "Material X was missing, notified supervisor" or "Tool wear detected, changed bit for second pass"
+  </Step>
+  <Step title="Click Save">
+    Click **"Record in Log"** button
+  </Step>
+  <Step title="Note is saved">
+    The note is recorded with your name and exact timestamp. The supervisor can see it.
+  </Step>
+</Steps>
+
+<Tip>
+Use notes to communicate important information to your supervisor:
+- Quality issues
+- Material problems
+- Tool or machine issues
+- Suggestions for improvement
+</Tip>
+
+### Viewing Previous Notes
+
+Below the comment form, you'll see the **"Operational History"** showing:
+
+- Your previous notes and comments
+- Timestamps
+- Your name
+
+---
+
+## Using the Search Feature
+
+If you have many assigned orders, use the search bar:
+
+<Steps>
+  <Step title="Find the search box">
+    At the top of "My Shift", look for **🔍 Search WO or title...**
+  </Step>
+  <Step title="Type your search">
+    Enter part of the order code or title
+  </Step>
+  <Step title="Results filter instantly">
+    The list filters to show only matching orders
+  </Step>
+</Steps>
+
+---
+
+## Understanding the Order Panel Layout
+
+The "My Shift" page has a clean, organized layout:
+
+<Accordion title="Work Queue Header">
+  Shows:
+  - Title: "Work Queue"
+  - Search bar
+  - Badge showing total assigned orders (e.g., "5 WO assigned")
+</Accordion>
+
+<Accordion title="Orders Table">
+  Displays your assigned orders in a table with columns:
+  - **WO**: Order code
+  - **Title**: Job description
+  - **Status**: Current status badge
+  - **Control Panel**: Action buttons (Start, Pause, Finish, Materials & Notes)
+</Accordion>
+
+<Accordion title="Expandable Details Panel">
+  When you click "Materials and Notes":
+  - Left side: Material consumption registration
+  - Right side: Operations log and comments
+  - Both sections show historical data below the input forms
+</Accordion>
+
+---
+
+## Frequently Asked Questions
+
+<Accordion title="Why don't I see any work orders?">
+  The supervisor hasn't assigned you any work yet. Check with your supervisor.
+</Accordion>
+
+<Accordion title="Can I see other operators' work orders?">
+  No. You only see your own assigned orders. This keeps the interface simple and focused.
+</Accordion>
+
+<Accordion title="What if I make a mistake registering material consumption?">
+  Notify the supervisor immediately so they can correct it from their interface. You cannot delete or edit consumptions.
+</Accordion>
+
+<Accordion title="Does the session expire?">
+  Yes, after 8 hours you'll need to log in again. This is a security feature.
+</Accordion>
+
+<Accordion title="Can I use this on a mobile phone?">
+  Yes! The system is mobile-responsive. You can use it on a phone or tablet in the workshop.
+</Accordion>
+
+<Accordion title="What if the internet goes down?">
+  The system requires internet/network connection. If connection is lost, wait until it's restored and continue working. Time may need manual correction by supervisor.
+</Accordion>
+
+<Accordion title="How do I change my password?">
+  Currently operators cannot change their own password. Ask your supervisor or the system owner to reset it.
+</Accordion>
+
+<Accordion title="Can I pause multiple times?">
+  Yes. You can pause and resume as many times as needed. Each pause and resume is logged with timestamps.
+</Accordion>
+
+---
+
+## Quick Action Reference
+
+Here's a summary of what you can do:
+
+### Order Actions
+
+<CardGroup cols={3}>
+  <Card title="▶ Start" icon="play">
+    Begin work on a PLANNED or PENDING order
+  </Card>
+  <Card title="⏸ Pause" icon="pause">
+    Temporarily stop work on an IN PROCESS order
+  </Card>
+  <Card title="▶ Resume" icon="play">
+    Continue work on a PAUSED order
+  </Card>
+  <Card title="✅ Finish" icon="check">
+    Complete work on an IN PROCESS order
+  </Card>
+  <Card title="📦 Materials" icon="box">
+    Register material consumptions
+  </Card>
+  <Card title="💬 Notes" icon="comment">
+    Add comments or observations
+  </Card>
+</CardGroup>
+
+### Button Visibility Rules
+
+| Order Status | Available Buttons |
+|--------------|-------------------|
+| **PLANNED / PENDING** | ▶ Start, 📦 Materials & Notes |
+| **IN PROCESS** | ⏸ Pause, ✅ Finish, 📦 Materials & Notes |
+| **PAUSED** | ▶ Resume, 📦 Materials & Notes |
+| **FINISHED** | 📦 Materials & Notes (view only) |
+
+---
+
+## Best Practices
+
+<Steps>
+  <Step title="Start orders on time">
+    Don't let PLANNED orders sit idle. Start them as soon as you're ready.
+  </Step>
+  <Step title="Be accurate with timing">
+    Click Start/Pause/Finish at the exact moment you begin/stop work. This ensures accurate time tracking.
+  </Step>
+  <Step title="Register ALL materials">
+    Record every material you use, no matter how small. This affects cost calculations.
+  </Step>
+  <Step title="Add helpful notes">
+    Document issues, observations, and important details. Your supervisor and future operators will thank you.
+  </Step>
+  <Step title="Check delivery dates">
+    Pay attention to delivery dates. If you see a red "delayed" badge, notify your supervisor.
+  </Step>
+  <Step title="Review before finishing">
+    Double-check your work before clicking Finish. Make sure quality standards are met.
+  </Step>
+</Steps>
+
+---
+
+## Safety and Communication Tips
+
+<Warning>
+**The system does NOT replace safety protocols!**
+
+Always follow workshop safety rules:
+- Use proper protective equipment
+- Follow machine safety procedures  
+- Report hazards immediately to supervisor
+- Do not rush just to update the system
+</Warning>
+
+<Tip>
+**Communicate proactively:**
+- Use notes to report problems early
+- Notify supervisor of material shortages before starting
+- Ask questions if work order instructions are unclear
+- Suggest improvements based on your hands-on experience
+</Tip>
+
+---
+
+## Troubleshooting Common Issues
+
+<Accordion title="Button is disabled/grayed out">
+  The button is disabled because:
+  - You're trying to start an order but already have one IN PROCESS
+  - The order status doesn't allow that action
+  - Network connection was lost (check your connection)
+</Accordion>
+
+<Accordion title="Material not found in dropdown">
+  The material hasn't been added to the system yet. Ask your supervisor to add it to the Materials catalog.
+</Accordion>
+
+<Accordion title="Cannot see order details">
+  Click the "📦 Materials and Notes" button to expand the details panel. Make sure you're looking at the correct order.
+</Accordion>
+
+<Accordion title="Page is loading forever">
+  - Check your internet/network connection
+  - Refresh the page (F5 or reload button)
+  - If problem persists, contact your supervisor
+</Accordion>
+
+---
+
+## Remember
+
+<CardGroup cols={2}>
+  <Card title="Your Responsibility" icon="clipboard-check">
+    - Register work times accurately
+    - Log ALL material consumptions
+    - Document issues and observations
+    - Communicate with supervisor via notes
+  </Card>
+  <Card title="System Benefits" icon="chart-line">
+    - Accurate time tracking for payroll
+    - Fair workload distribution
+    - Better cost control
+    - Improved workshop efficiency
+  </Card>
+</CardGroup>
+
+---
+
+*DRAIT Mini-MES — Production management system*

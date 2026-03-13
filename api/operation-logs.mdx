@@ -1,0 +1,307 @@
+---
+title: 'Operation Logs'
+description: 'Operation event tracking and traceability endpoints'
+icon: 'list-timeline'
+---
+
+## Overview
+
+Operation log endpoints provide read-only access to the operation event timeline. Events are automatically created when work order statuses change, or manually added via the work orders endpoints.
+
+<Note>
+  Operation logs are read-only. To create new events, use the `POST /api/work-orders/:id/events` endpoint.
+</Note>
+
+---
+
+## GET /api/operation-logs
+
+Retrieve operation logs with optional filtering.
+
+**Authentication**: Required (JWT)
+
+**Roles**: All authenticated users (filtered by role permissions)
+
+### Query Parameters
+
+<ParamField query="workOrderId" type="string">
+  Filter by work order ID
+</ParamField>
+
+<ParamField query="from" type="string">
+  Filter events from this ISO 8601 date
+</ParamField>
+
+<ParamField query="to" type="string">
+  Filter events until this ISO 8601 date
+</ParamField>
+
+### Response
+
+Returns an array of operation log objects sorted by event time (most recent first).
+
+<ResponseField name="id" type="string">
+  Operation log unique identifier
+</ResponseField>
+
+<ResponseField name="companyId" type="string">
+  Associated company ID
+</ResponseField>
+
+<ResponseField name="workOrderId" type="string">
+  Associated work order ID
+</ResponseField>
+
+<ResponseField name="resourceId" type="string">
+  Associated resource ID (if applicable)
+</ResponseField>
+
+<ResponseField name="userId" type="string">
+  User who triggered the event (if applicable)
+</ResponseField>
+
+<ResponseField name="eventType" type="string">
+  Event type: `OT_CREADA`, `ASIGNADO`, `INICIO`, `PAUSA`, `REANUDACION`, `FINALIZACION`, `CAMBIO_ESTADO`, `MATERIAL_CONSUMIDO`, or `NOTA`
+</ResponseField>
+
+<ResponseField name="eventAt" type="string">
+  ISO 8601 timestamp when the event occurred
+</ResponseField>
+
+<ResponseField name="pauseReason" type="string">
+  Reason for pause (only for `PAUSA` events)
+</ResponseField>
+
+<ResponseField name="note" type="string">
+  Additional notes or comments
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 timestamp of log creation
+</ResponseField>
+
+<ResponseField name="workOrder" type="object">
+  Nested work order object
+  
+  <Expandable title="Work order properties">
+    <ResponseField name="code" type="string">
+      Work order code
+    </ResponseField>
+    
+    <ResponseField name="title" type="string">
+      Work order title
+    </ResponseField>
+    
+    <ResponseField name="status" type="string">
+      Current work order status
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="resource" type="object">
+  Nested resource object (if applicable)
+  
+  <Expandable title="Resource properties">
+    <ResponseField name="name" type="string">
+      Resource name
+    </ResponseField>
+    
+    <ResponseField name="type" type="string">
+      Resource type: `HUMANO` or `MAQUINA`
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  Nested user object (if applicable)
+  
+  <Expandable title="User properties">
+    <ResponseField name="fullName" type="string">
+      User's full name
+    </ResponseField>
+    
+    <ResponseField name="role" type="string">
+      User role
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.example.com/api/operation-logs?workOrderId=clx_wo_123&from=2026-03-01T00:00:00Z" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://api.example.com/api/operation-logs?workOrderId=clx_wo_123',
+  {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  }
+);
+
+const logs = await response.json();
+```
+</CodeGroup>
+
+---
+
+## GET /api/operation-logs/work-order/:workOrderId
+
+Retrieve all operation logs for a specific work order.
+
+**Authentication**: Required (JWT)
+
+**Roles**: All authenticated users (filtered by role permissions)
+
+### Path Parameters
+
+<ParamField path="workOrderId" type="string" required>
+  Work order ID
+</ParamField>
+
+### Response
+
+Returns an array of operation log objects for the specified work order, sorted chronologically.
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.example.com/api/operation-logs/work-order/clx_wo_123 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  `https://api.example.com/api/operation-logs/work-order/${workOrderId}`,
+  {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  }
+);
+
+const logs = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    f'https://api.example.com/api/operation-logs/work-order/{work_order_id}',
+    headers={'Authorization': f'Bearer {access_token}'}
+)
+
+logs = response.json()
+```
+</CodeGroup>
+
+---
+
+## GET /api/operation-logs/status
+
+Check the operation logs service status.
+
+**Authentication**: None (public endpoint)
+
+### Response
+
+<ResponseField name="status" type="string">
+  Service status
+</ResponseField>
+
+---
+
+## Event Types
+
+The system tracks the following operation event types:
+
+<CardGroup cols={2}>
+  <Card title="OT_CREADA" icon="plus">
+    Work order was created
+  </Card>
+  
+  <Card title="ASIGNADO" icon="user-plus">
+    Resource or operator was assigned
+  </Card>
+  
+  <Card title="INICIO" icon="play">
+    Work started on the order
+  </Card>
+  
+  <Card title="PAUSA" icon="pause">
+    Work was paused (requires pauseReason)
+  </Card>
+  
+  <Card title="REANUDACION" icon="rotate-right">
+    Work was resumed after pause
+  </Card>
+  
+  <Card title="FINALIZACION" icon="check">
+    Work was completed
+  </Card>
+  
+  <Card title="CAMBIO_ESTADO" icon="arrows-rotate">
+    Work order status changed
+  </Card>
+  
+  <Card title="MATERIAL_CONSUMIDO" icon="box">
+    Material was consumed
+  </Card>
+  
+  <Card title="NOTA" icon="note-sticky">
+    Free-form note was added
+  </Card>
+</CardGroup>
+
+---
+
+## Example Timeline
+
+Here's an example of a typical work order event timeline:
+
+```json
+[
+  {
+    "eventType": "OT_CREADA",
+    "eventAt": "2026-03-10T08:00:00Z",
+    "note": "Work order created from quotation Q-2026-042"
+  },
+  {
+    "eventType": "ASIGNADO",
+    "eventAt": "2026-03-10T08:15:00Z",
+    "resourceId": "clx_res_123",
+    "userId": "clx_user_456",
+    "note": "Assigned to Juan Pérez on Soldadora MIG 300A"
+  },
+  {
+    "eventType": "INICIO",
+    "eventAt": "2026-03-10T09:00:00Z",
+    "note": "Starting welding operations"
+  },
+  {
+    "eventType": "PAUSA",
+    "eventAt": "2026-03-10T12:00:00Z",
+    "pauseReason": "Lunch break"
+  },
+  {
+    "eventType": "REANUDACION",
+    "eventAt": "2026-03-10T13:00:00Z"
+  },
+  {
+    "eventType": "MATERIAL_CONSUMIDO",
+    "eventAt": "2026-03-10T14:30:00Z",
+    "note": "Consumed 5.5kg of welding electrodes"
+  },
+  {
+    "eventType": "FINALIZACION",
+    "eventAt": "2026-03-10T17:00:00Z",
+    "note": "Welding completed successfully"
+  }
+]
+```
+
+<Note>
+  Operation logs provide complete traceability for production operations, including who did what, when, and on which resource. This data is essential for productivity analysis and compliance reporting.
+</Note>

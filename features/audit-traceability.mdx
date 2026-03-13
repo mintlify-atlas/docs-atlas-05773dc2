@@ -1,0 +1,613 @@
+---
+title: Audit & Traceability
+description: Complete system activity logging and compliance tracking
+icon: shield-check
+---
+
+# Audit Logs and Traceability
+
+DRAIT Mini-MES maintains comprehensive audit trails for all critical system operations. Every create, update, delete, and status change is logged with user attribution, timestamps, and before/after state capture.
+
+## Overview
+
+The audit system provides:
+
+- **Complete history**: Every change recorded with context
+- **User attribution**: Who made each change
+- **State capture**: Before and after values for changes
+- **Compliance**: Supports regulatory and quality management requirements
+- **Forensics**: Investigate issues and understand system state evolution
+
+<Info>
+  Audit logs are append-only. Records cannot be edited or deleted, ensuring immutable history.
+</Info>
+
+## Audited Entities
+
+The system tracks changes to these entity types:
+
+<CardGroup cols={4}>
+  <Card title="COMPANY" icon="building">
+    Company configuration and settings changes.
+  </Card>
+  
+  <Card title="USER" icon="user">
+    User account creation, role changes, password resets.
+  </Card>
+  
+  <Card title="CLIENT" icon="address-book">
+    Client directory modifications.
+  </Card>
+  
+  <Card title="QUOTATION" icon="file-invoice">
+    Quotation creation, edits, status changes.
+  </Card>
+  
+  <Card title="WORK_ORDER" icon="clipboard-list">
+    Work order lifecycle events, assignments, delivery closure.
+  </Card>
+  
+  <Card title="RESOURCE" icon="cog">
+    Resource creation, status changes.
+  </Card>
+  
+  <Card title="MATERIAL" icon="box">
+    Material creation, stock adjustments.
+  </Card>
+  
+  <Card title="AUTH" icon="key">
+    Authentication events (login, logout).
+  </Card>
+</CardGroup>
+
+## Action Types
+
+Audit logs capture these action types:
+
+| Action | Description | Example |
+|--------|-------------|----------|
+| **CREATE** | New entity created | Creating a new work order |
+| **UPDATE** | Entity modified | Updating client contact info |
+| **DELETE** | Entity deleted | Deleting a quotation |
+| **STATUS_CHANGE** | Status field changed | Work order: PENDIENTE → EN_PROCESO |
+| **ASSIGN** | Resource assigned | Operator assigned to work order |
+| **DELIVERY_CLOSE** | Work order delivered | Completing delivery with signed remito |
+| **PASSWORD_CHANGE** | User password reset | Admin resetting operator password |
+| **ROLE_CHANGE** | User role modified | Promoting OPERARIO to SUPERVISOR |
+| **SETTINGS_CHANGE** | Company settings updated | Changing deviation thresholds |
+| **LOGIN** | Authentication event | User login to system |
+
+## Audit Log Structure
+
+```prisma
+model AuditLog {
+  id         String
+  companyId  String
+  userId     String?         // User who performed action (null for system)
+  entityType AuditEntityType // What was changed
+  entityId   String          // ID of changed entity
+  action     AuditActionType // What action occurred
+  before     Json?           // State before change
+  after      Json?           // State after change
+  metadata   Json?           // Additional context
+  createdAt  DateTime
+  
+  company    Company
+  user       User?
+}
+```
+
+### State Capture
+
+For UPDATE, DELETE, and STATUS_CHANGE actions, the system captures:
+
+<Tabs>
+  <Tab title="Before State">
+    The `before` field contains the entity state prior to the change:
+    
+    ```json
+    {
+      "status": "PENDIENTE",
+      "priority": 3,
+      "commitmentDate": "2026-03-15T00:00:00.000Z"
+    }
+    ```
+    
+    Only fields being changed are included.
+  </Tab>
+  
+  <Tab title="After State">
+    The `after` field contains the new state:
+    
+    ```json
+    {
+      "status": "EN_PROCESO",
+      "priority": 3,
+      "commitmentDate": "2026-03-15T00:00:00.000Z"
+    }
+    ```
+    
+    Enables precise diff calculation.
+  </Tab>
+  
+  <Tab title="Metadata">
+    The `metadata` field stores action-specific context:
+    
+    ```json
+    {
+      "ipAddress": "192.168.1.100",
+      "userAgent": "Mozilla/5.0...",
+      "reason": "Customer requested priority increase"
+    }
+    ```
+    
+    Extensible for future enhancements.
+  </Tab>
+</Tabs>
+
+<Warning>
+  Sensitive data like passwords is NEVER stored in audit logs, even in hashed form. Password changes log the action only.
+</Warning>
+
+## Viewing Audit Logs
+
+### Audit Page
+
+Access the audit log viewer:
+
+<Steps>
+  <Step title="Navigate to Audit">
+    Go to **System** → **Audit History** (visible to all users, filtered by permissions).
+  </Step>
+  
+  <Step title="Apply filters">
+    Use dropdown filters:
+    - **Entidad**: Filter by entity type (Client, Work Order, etc.)
+    - **Acción**: Filter by action type (CREATE, UPDATE, etc.)
+  </Step>
+  
+  <Step title="Review entries">
+    Table displays:
+    - Date/time of action
+    - User who performed action
+    - Entity type and ID
+    - Action type with color-coded badge
+    - Detail expansion button
+  </Step>
+  
+  <Step title="Expand details">
+    Click "▼ Ver" to expand log entry and view:
+    - Before state
+    - After state
+    - Metadata
+    
+    Click "▲ Ocultar" to collapse.
+  </Step>
+</Steps>
+
+### In Resource Management
+
+Administrators see a compact audit view in **Resources & Capacity** page:
+
+- Last 40 audit entries
+- Shows entity type, action, user, and timestamp
+- Scrollable panel for quick overview
+- Links to full audit page for detailed investigation
+
+## Badge Color Coding
+
+Actions are color-coded for quick identification:
+
+<CardGroup cols={3}>
+  <Card title="Green (Success)" icon="check">
+    - CREATE
+    - DELIVERY_CLOSE
+  </Card>
+  
+  <Card title="Blue (Primary)" icon="edit">
+    - UPDATE
+    - ASSIGN
+  </Card>
+  
+  <Card title="Orange (Warning)" icon="exclamation-triangle">
+    - STATUS_CHANGE
+    - PASSWORD_CHANGE
+    - ROLE_CHANGE
+  </Card>
+  
+  <Card title="Red (Destructive)" icon="trash">
+    - DELETE
+  </Card>
+  
+  <Card title="Gray (Default)" icon="circle">
+    - SETTINGS_CHANGE
+    - LOGIN
+  </Card>
+</CardGroup>
+
+## Common Audit Scenarios
+
+### Tracking Work Order Changes
+
+<Steps>
+  <Step title="Work order created">
+    ```json
+    {
+      "entityType": "WORK_ORDER",
+      "action": "CREATE",
+      "after": {
+        "code": "OT-2026-045",
+        "status": "PENDIENTE",
+        "clientId": "...",
+        "title": "Fabricación estructura metálica"
+      }
+    }
+    ```
+  </Step>
+  
+  <Step title="Status changed to EN_PROCESO">
+    ```json
+    {
+      "entityType": "WORK_ORDER",
+      "action": "STATUS_CHANGE",
+      "before": { "status": "PENDIENTE" },
+      "after": { "status": "EN_PROCESO" }
+    }
+    ```
+  </Step>
+  
+  <Step title="Operator assigned">
+    ```json
+    {
+      "entityType": "WORK_ORDER",
+      "action": "ASSIGN",
+      "metadata": {
+        "resourceId": "...",
+        "userId": "...",
+        "resourceName": "Soldador A"
+      }
+    }
+    ```
+  </Step>
+  
+  <Step title="Delivery closed">
+    ```json
+    {
+      "entityType": "WORK_ORDER",
+      "action": "DELIVERY_CLOSE",
+      "before": { "status": "FINALIZADA", "deliveredAt": null },
+      "after": {
+        "status": "ENTREGADA",
+        "deliveredAt": "2026-03-20T14:30:00Z",
+        "isSigned": true
+      }
+    }
+    ```
+  </Step>
+</Steps>
+
+### Investigating User Changes
+
+To audit user account modifications:
+
+1. Filter by **Entity Type**: USER
+2. Review timeline of actions:
+   - CREATE: User account created
+   - ROLE_CHANGE: Role elevated or demoted
+   - PASSWORD_CHANGE: Password reset by admin
+   - UPDATE: Profile information changed
+
+<Tabs>
+  <Tab title="Role Change Example">
+    ```json
+    {
+      "entityType": "USER",
+      "entityId": "clx1234...",
+      "action": "ROLE_CHANGE",
+      "userId": "clx9876...",  // Admin who made change
+      "before": { "role": "OPERARIO" },
+      "after": { "role": "SUPERVISOR" },
+      "createdAt": "2026-03-10T09:15:00Z"
+    }
+    ```
+    
+    Shows operator promoted to supervisor by admin user.
+  </Tab>
+  
+  <Tab title="Password Reset">
+    ```json
+    {
+      "entityType": "USER",
+      "entityId": "clx1234...",
+      "action": "PASSWORD_CHANGE",
+      "userId": "clx9876...",  // Admin who reset password
+      "before": null,
+      "after": null,  // No password data stored
+      "metadata": {
+        "reason": "User forgot password"
+      },
+      "createdAt": "2026-03-12T11:20:00Z"
+    }
+    ```
+    
+    Password content is never logged for security.
+  </Tab>
+</Tabs>
+
+### Company Settings Audit
+
+Critical threshold changes are audited:
+
+```json
+{
+  "entityType": "COMPANY",
+  "action": "SETTINGS_CHANGE",
+  "before": {
+    "warningTimeDeviationPct": 20,
+    "criticalTimeDeviationPct": 40
+  },
+  "after": {
+    "warningTimeDeviationPct": 25,
+    "criticalTimeDeviationPct": 50
+  },
+  "metadata": {
+    "affectedReports": ["dashboard", "productivity"]
+  }
+}
+```
+
+Enables understanding of when and why alert thresholds changed.
+
+## Operational Event Logs
+
+In addition to audit logs, the system maintains `OperationLog` for production traceability:
+
+```prisma
+model OperationLog {
+  id          String
+  companyId   String
+  workOrderId String
+  resourceId  String?         // Machine/station used
+  userId      String?         // Operator
+  eventType   OperationEventType
+  eventAt     DateTime        // When event occurred
+  pauseReason String?         // If PAUSA event
+  note        String?         // Free-form notes
+  createdAt   DateTime
+  
+  workOrder   WorkOrder
+  resource    Resource?
+  user        User?
+}
+```
+
+### Operation Event Types
+
+<CardGroup cols={3}>
+  <Card title="OT_CREADA" icon="plus">
+    Work order created
+  </Card>
+  
+  <Card title="ASIGNADO" icon="user-plus">
+    Resource/operator assigned
+  </Card>
+  
+  <Card title="INICIO" icon="play">
+    Work started
+  </Card>
+  
+  <Card title="PAUSA" icon="pause">
+    Work paused (with reason)
+  </Card>
+  
+  <Card title="REANUDACION" icon="play-circle">
+    Work resumed
+  </Card>
+  
+  <Card title="FINALIZACION" icon="check">
+    Work completed
+  </Card>
+  
+  <Card title="CAMBIO_ESTADO" icon="exchange-alt">
+    Manual status change
+  </Card>
+  
+  <Card title="MATERIAL_CONSUMIDO" icon="box">
+    Material consumed
+  </Card>
+  
+  <Card title="NOTA" icon="sticky-note">
+    Free-form note added
+  </Card>
+</CardGroup>
+
+<Info>
+  Operation logs focus on production events, while audit logs track data changes. Together they provide complete traceability.
+</Info>
+
+## Compliance and Reporting
+
+### Regulatory Compliance
+
+Audit logs support:
+
+- **ISO 9001**: Quality management documentation requirements
+- **ISO/TS 16949**: Automotive quality standards
+- **FDA 21 CFR Part 11**: Electronic records for regulated industries
+- **SOX**: Financial controls and change documentation
+- **Internal audits**: Periodic review of system usage
+
+### Audit Reports
+
+Typical audit queries:
+
+<Tabs>
+  <Tab title="User Activity">
+    Find all actions by a specific user:
+    
+    ```typescript
+    GET /api/audit-logs?userId={userId}&limit=100
+    ```
+    
+    Use case: Review employee activity, investigate incidents.
+  </Tab>
+  
+  <Tab title="Entity History">
+    Get complete history of a specific entity:
+    
+    ```typescript
+    GET /api/audit-logs?entityType=WORK_ORDER&entityId={workOrderId}
+    ```
+    
+    Use case: Understand work order lifecycle, trace issue origin.
+  </Tab>
+  
+  <Tab title="Action Type">
+    Find all instances of a specific action:
+    
+    ```typescript
+    GET /api/audit-logs?action=DELETE&limit=50
+    ```
+    
+    Use case: Review all deletions for compliance.
+  </Tab>
+  
+  <Tab title="Time Range">
+    Query by date range (requires custom API parameter):
+    
+    ```typescript
+    GET /api/audit-logs?startDate=2026-01-01&endDate=2026-03-31
+    ```
+    
+    Use case: Quarterly compliance reports.
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<Card title="Audit Log Usage" icon="lightbulb">
+  **For Administrators:**
+  - Review audit logs weekly for unusual patterns
+  - Monitor DELETE and ROLE_CHANGE actions closely
+  - Investigate multiple failed LOGIN attempts
+  - Use audit logs for training on common errors
+  - Export logs periodically for external archival
+  
+  **For Quality Managers:**
+  - Reference audit logs during non-conformance investigations
+  - Use work order history to identify process improvements
+  - Document corrective actions with audit trail evidence
+  - Include relevant audit logs in quality reports
+  
+  **For Compliance:**
+  - Establish retention policies (recommend 7 years minimum)
+  - Implement automated audit log backups
+  - Define access controls for sensitive audit data
+  - Create standard audit report templates
+  - Train staff on audit log importance
+  
+  **Security:**
+  - Restrict audit log deletion permissions (should be none)
+  - Monitor LOGIN events for unauthorized access attempts
+  - Alert on after-hours administrative actions
+  - Use audit logs as input to security incident response
+</Card>
+
+## Performance Considerations
+
+<Warning>
+  Audit logs grow continuously. Implement archival strategy for production deployments.
+</Warning>
+
+**Recommendations:**
+
+1. **Indexing**: Database indexes on:
+   - `companyId + createdAt` (time-based queries)
+   - `entityType + entityId` (entity history)
+   - `userId + createdAt` (user activity)
+   - `action + createdAt` (action-based reports)
+
+2. **Archival**: Move logs older than 1 year to cold storage:
+   - Compress to JSON files
+   - Store in S3 or similar
+   - Maintain searchability via data lake tools
+
+3. **Pagination**: Always use `limit` parameter:
+   - Default: 100 records
+   - Maximum: 1000 records per request
+   - Use cursor-based pagination for large exports
+
+4. **Caching**: Recent logs (last 24h) can be cached:
+   - Redis cache for audit log dashboard
+   - Invalidate on new audit log creation
+
+## API Endpoints
+
+```typescript
+// List audit logs with filters
+GET /api/audit-logs
+Query params:
+  - entityType?: AuditEntityType
+  - entityId?: string
+  - action?: AuditActionType
+  - userId?: string
+  - limit?: number (default 100, max 1000)
+  - offset?: number
+
+Response: AuditLog[]
+
+// Get single audit log
+GET /api/audit-logs/:id
+
+Response: AuditLog
+
+// Note: No POST, PATCH, or DELETE endpoints
+// Audit logs are created automatically by system
+// and cannot be modified or deleted
+```
+
+### Creating Audit Logs (Backend)
+
+Audit logs are created automatically by the backend audit service:
+
+```typescript
+// Example: Creating audit log in backend
+import { AuditService } from '@/modules/audit/audit.service';
+
+class WorkOrderService {
+  constructor(private auditService: AuditService) {}
+  
+  async updateWorkOrder(id: string, data: UpdateDto, userId: string) {
+    const before = await this.workOrderRepo.findById(id);
+    const updated = await this.workOrderRepo.update(id, data);
+    
+    // Automatically create audit log
+    await this.auditService.log({
+      entityType: 'WORK_ORDER',
+      entityId: id,
+      action: 'UPDATE',
+      userId,
+      before: { status: before.status, priority: before.priority },
+      after: { status: updated.status, priority: updated.priority }
+    });
+    
+    return updated;
+  }
+}
+```
+
+<Info>
+  Frontend developers don't directly create audit logs. They're generated automatically by backend services.
+</Info>
+
+## Future Enhancements
+
+Planned audit system improvements:
+
+- **Real-time alerts**: Webhook notifications for critical actions
+- **Advanced search**: Full-text search across before/after/metadata
+- **Diff visualization**: Side-by-side comparison of before/after states
+- **Export formats**: CSV, Excel, PDF audit reports
+- **Retention automation**: Auto-archive logs based on policy
+- **Audit analytics**: Dashboards for audit log insights
+- **API rate limiting logs**: Track API usage for security

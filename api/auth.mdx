@@ -1,0 +1,215 @@
+---
+title: 'Authentication'
+description: 'Endpoints for user authentication and session management'
+icon: 'key'
+---
+
+## Overview
+
+The authentication endpoints handle user login, session validation, and logout operations. All endpoints use JWT (JSON Web Token) for authentication.
+
+<Note>
+  Login attempts are rate-limited to 5 attempts per minute per IP address to prevent brute-force attacks.
+</Note>
+
+---
+
+## POST /api/auth/login
+
+Authenticate a user and receive a JWT access token.
+
+**Authentication**: None (public endpoint)
+
+**Rate Limit**: 5 requests per minute per IP
+
+### Request Body
+
+<ParamField body="email" type="string" required>
+  User's email address
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password (minimum 6 characters)
+</ParamField>
+
+### Response
+
+<ResponseField name="accessToken" type="string">
+  JWT access token for authenticated requests
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  Authenticated user information
+  
+  <Expandable title="User object properties">
+    <ResponseField name="id" type="string">
+      User's unique identifier
+    </ResponseField>
+    
+    <ResponseField name="email" type="string">
+      User's email address
+    </ResponseField>
+    
+    <ResponseField name="fullName" type="string">
+      User's full name
+    </ResponseField>
+    
+    <ResponseField name="role" type="string">
+      User role: `DUENO`, `SUPERVISOR`, `OPERARIO`, or `ADMIN`
+    </ResponseField>
+    
+    <ResponseField name="companyId" type="string">
+      Associated company ID
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.example.com/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "supervisor@drait.local",
+    "password": "ChangeMe123!"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.example.com/api/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'supervisor@drait.local',
+    password: 'ChangeMe123!'
+  })
+});
+
+const data = await response.json();
+console.log(data.accessToken);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'https://api.example.com/api/auth/login',
+    json={
+        'email': 'supervisor@drait.local',
+        'password': 'ChangeMe123!'
+    }
+)
+
+data = response.json()
+print(data['accessToken'])
+```
+</CodeGroup>
+
+---
+
+## GET /api/auth/me
+
+Get current authenticated user information.
+
+**Authentication**: Required (JWT)
+
+### Response
+
+<ResponseField name="id" type="string">
+  User's unique identifier
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  User's email address
+</ResponseField>
+
+<ResponseField name="fullName" type="string">
+  User's full name
+</ResponseField>
+
+<ResponseField name="role" type="string">
+  User role: `DUENO`, `SUPERVISOR`, `OPERARIO`, or `ADMIN`
+</ResponseField>
+
+<ResponseField name="companyId" type="string">
+  Associated company ID
+</ResponseField>
+
+<ResponseField name="isActive" type="boolean">
+  Whether the user account is active
+</ResponseField>
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.example.com/api/auth/me \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.example.com/api/auth/me', {
+  headers: {
+    'Authorization': `Bearer ${accessToken}`
+  }
+});
+
+const user = await response.json();
+```
+</CodeGroup>
+
+---
+
+## POST /api/auth/logout
+
+Log out the current user session.
+
+**Authentication**: Required (JWT)
+
+### Response
+
+<ResponseField name="success" type="boolean">
+  Always returns `true` on successful logout
+</ResponseField>
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.example.com/api/auth/logout \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.example.com/api/auth/logout', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${accessToken}`
+  }
+});
+
+const result = await response.json();
+console.log(result.success); // true
+```
+</CodeGroup>
+
+<Note>
+  The logout endpoint clears the session on the client side. Ensure you remove the JWT token from your application's storage after calling this endpoint.
+</Note>
+
+---
+
+## GET /api/auth/status
+
+Check the authentication service status.
+
+**Authentication**: None (public endpoint)
+
+### Response
+
+<ResponseField name="status" type="string">
+  Service status (typically "ok")
+</ResponseField>
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.example.com/api/auth/status
+```
+</CodeGroup>

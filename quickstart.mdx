@@ -1,80 +1,316 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start Guide
+description: Get DRAIT Mini-MES up and running in minutes with Docker Compose
 ---
 
-## Get started in three steps
+This guide walks you through deploying DRAIT Mini-MES from scratch to a fully functional Manufacturing Execution System.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
+Before you begin, ensure you have the following installed:
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+- Docker Engine 20.10+
+- Docker Compose 2.0+
+- Git
+- At least 2GB of available RAM
+- Port 80 available on your host machine
 
-### Step 2: Deploy your changes
+<Warning>
+  DRAIT Mini-MES requires PostgreSQL 16 and Node.js 20. These are provided automatically via Docker containers.
+</Warning>
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+## Installation
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+<Steps>
+  <Step title="Clone the repository">
+    First, clone the DRAIT Mini-MES repository to your local machine:
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```bash
+    git clone https://github.com/yourusername/drait-mini-mes.git
+    cd drait-mini-mes
+    ```
+  </Step>
 
-### Step 3: Go live
+  <Step title="Configure environment variables">
+    Copy the example environment file and customize it for your deployment:
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    ```bash
+    cp .env.example .env
+    ```
 
-## Next steps
+    Open `.env` in your favorite editor and configure the following critical variables:
 
-Now that you have your docs running, explore these key features:
+    ```bash .env
+    # Global
+    NODE_ENV=development
+    TZ=America/Buenos_Aires
+
+    # Database
+    POSTGRES_DB=drait_mes
+    POSTGRES_USER=drait
+    POSTGRES_PASSWORD=drait123  # Change this!
+    POSTGRES_PORT=5432
+    DATABASE_URL=postgresql://drait:drait123@drait-db:5432/drait_mes?schema=public
+
+    # Backend
+    BACKEND_PORT=3000
+    JWT_SECRET=change_this_secret  # Change this!
+    JWT_EXPIRES_IN=8h
+    CORS_ORIGIN=http://localhost
+
+    # Frontend
+    VITE_API_BASE_URL=/api
+
+    # Nginx
+    HTTP_PORT=80
+    ```
+
+    <Warning>
+      **Security Critical**: Before deploying to production, you MUST change:
+      - `POSTGRES_PASSWORD` - Use a strong database password
+      - `JWT_SECRET` - Use a cryptographically secure random string (32+ characters)
+      
+      The backend will refuse to start in production mode with weak secrets.
+    </Warning>
+  </Step>
+
+  <Step title="Build and launch the stack">
+    Start all services using Docker Compose:
+
+    ```bash
+    docker compose up --build -d
+    ```
+
+    This command will:
+    - Build the NestJS backend container
+    - Build the React frontend container
+    - Start PostgreSQL 16 database
+    - Configure Nginx reverse proxy
+    - Connect all services via internal Docker network
+
+    <Info>
+      The `--build` flag ensures containers are rebuilt with your latest code changes. The `-d` flag runs containers in detached mode.
+    </Info>
+  </Step>
+
+  <Step title="Initialize the database">
+    Apply Prisma migrations to create the database schema:
+
+    ```bash
+    docker compose exec drait-backend npm run prisma:migrate
+    ```
+
+    Then seed the database with demo data:
+
+    ```bash
+    docker compose exec drait-backend npm run prisma:seed
+    ```
+
+    The seed script creates:
+    - A demo company
+    - Users for all roles (OWNER, SUPERVISOR, OPERATOR)
+    - Sample clients and quotations
+    - Work orders with assignments
+    - Resources (machines and operators)
+    - Materials with stock
+    - Operation logs and consumption records
+  </Step>
+
+  <Step title="Verify the deployment">
+    Check that all services are running:
+
+    ```bash
+    docker compose ps
+    ```
+
+    You should see 4 containers running:
+    - `drait-db` - PostgreSQL database
+    - `drait-backend` - NestJS API server
+    - `drait-frontend` - React app (Nginx)
+    - `drait-nginx` - Reverse proxy
+
+    Verify the API health endpoint:
+
+    ```bash
+    curl http://localhost/api/health
+    ```
+
+    Expected response:
+    ```json
+    {
+      "status": "ok",
+      "timestamp": "2026-03-13T..."
+    }
+    ```
+  </Step>
+</Steps>
+
+## Access the Application
 
 <CardGroup cols={2}>
+  <Card title="Frontend" icon="browser" href="http://localhost">
+    Open your browser and navigate to `http://localhost` to access the DRAIT Mini-MES web interface.
+  </Card>
+  
+  <Card title="API Documentation" icon="code" href="http://localhost/api">
+    The REST API is available at `http://localhost/api` with full JWT authentication.
+  </Card>
+</CardGroup>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+## Demo Credentials
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+The seed script creates three demo users with different permission levels:
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+<CodeGroup>
+```bash Owner / Admin
+Email: owner@drait.local
+Password: ChangeMe123!
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+Access: Full system access including user management and audit logs
+```
 
+```bash Supervisor
+Email: supervisor@drait.local
+Password: ChangeMe123!
+
+Access: Dashboard, clients, quotations, work orders, resources, materials, reports
+```
+
+```bash Operator
+Email: oper1@drait.local
+Password: ChangeMe123!
+
+Access: "Mi Turno" (My Shift) - View and execute assigned work orders only
+```
+</CodeGroup>
+
+<Tip>
+  Start by logging in as the **Owner** to explore all features and configure your workshop.
+</Tip>
+
+## First Steps After Login
+
+Once logged in, here's what you should do:
+
+1. **Dashboard** - View key performance indicators (KPIs) for active work orders, pending quotations, and resource utilization
+2. **Clients** - Add your first real client or explore the demo clients
+3. **Resources** - Configure your machines and operators
+4. **Materials** - Set up your inventory with materials and unit costs
+5. **Quotations** - Create a quotation and convert it to a work order
+6. **Work Orders** - Assign resources, track progress, and register material consumption
+
+## Common Commands
+
+<CodeGroup>
+```bash View Logs
+# View all service logs
+docker compose logs -f
+
+# View specific service logs
+docker compose logs -f drait-backend
+docker compose logs -f drait-frontend
+```
+
+```bash Stop Services
+# Stop all services
+docker compose down
+
+# Stop and remove volumes (WARNING: deletes database)
+docker compose down -v
+```
+
+```bash Restart Services
+# Restart a specific service
+docker compose restart drait-backend
+
+# Rebuild and restart after code changes
+docker compose up --build -d
+```
+
+```bash Database Operations
+# Access PostgreSQL shell
+docker compose exec drait-db psql -U drait -d drait_mes
+
+# Reset database (WARNING: destructive)
+docker compose exec drait-backend npm run prisma:migrate:reset
+```
+</CodeGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Port 80 is already in use">
+    If port 80 is already in use, edit `.env` and change `HTTP_PORT` to another port (e.g., `8080`):
+    
+    ```bash
+    HTTP_PORT=8080
+    ```
+    
+    Then access the app at `http://localhost:8080`
+  </Accordion>
+
+  <Accordion title="Database connection errors">
+    If the backend cannot connect to the database:
+    
+    1. Check that `drait-db` container is healthy:
+       ```bash
+       docker compose ps drait-db
+       ```
+    
+    2. Verify `DATABASE_URL` in `.env` matches your PostgreSQL credentials
+    
+    3. Ensure the database service name is `drait-db` (not `db`)
+  </Accordion>
+
+  <Accordion title="JWT authentication fails">
+    If you see "401 Unauthorized" errors:
+    
+    1. Clear browser local storage and cookies
+    2. Verify `JWT_SECRET` is set in `.env`
+    3. Check that `CORS_ORIGIN` matches your frontend URL
+    4. Restart the backend:
+       ```bash
+       docker compose restart drait-backend
+       ```
+  </Accordion>
+
+  <Accordion title="Frontend shows blank page">
+    If the frontend doesn't load:
+    
+    1. Check frontend build logs:
+       ```bash
+       docker compose logs drait-frontend
+       ```
+    
+    2. Verify `VITE_API_BASE_URL` is set to `/api` in `.env`
+    
+    3. Rebuild the frontend:
+       ```bash
+       docker compose up --build -d drait-frontend
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture Overview" icon="diagram-project" href="/architecture">
+    Learn about DRAIT's system architecture, components, and data flow
+  </Card>
+  
+  <Card title="API Reference" icon="code" href="/api/introduction">
+    Explore the REST API endpoints and integration options
+  </Card>
+  
+  <Card title="User Guides" icon="users" href="/guides/owner-manual">
+    Learn how to use DRAIT based on your role
+  </Card>
+  
+  <Card title="Work Order Flow" icon="list-check" href="/features/work-orders">
+    Understand the complete work order lifecycle
+  </Card>
 </CardGroup>
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  For production deployments, consider implementing SSL/TLS, setting up automated backups, and configuring monitoring for the PostgreSQL database and backend services.
 </Note>

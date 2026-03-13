@@ -1,0 +1,682 @@
+---
+title: Dashboard, Reports & Analytics
+description: Real-time KPIs, productivity analysis, and operational insights
+icon: chart-line
+---
+
+# Dashboard, Reports, and Analytics
+
+DRAIT Mini-MES provides comprehensive analytics through the executive dashboard and productivity reports, enabling data-driven decision making and performance monitoring.
+
+## Executive Dashboard
+
+The dashboard provides real-time operational visibility with KPIs, charts, and alerts.
+
+### Accessing the Dashboard
+
+Navigate to **Dashboard** from the main menu. The dashboard loads data for the selected time period (3, 6, or 12 months).
+
+<Info>
+  Dashboard data updates when you reload the page. KPIs reflect current system state at load time.
+</Info>
+
+### Time Period Selection
+
+Control the analysis window using the period selector:
+
+<CardGroup cols={3}>
+  <Card title="3 Months" icon="calendar">
+    Last quarter view for short-term trends.
+  </Card>
+  
+  <Card title="6 Months" icon="calendar">
+    Half-year analysis for medium-term patterns.
+  </Card>
+  
+  <Card title="12 Months" icon="calendar">
+    Full year view for annual performance (default).
+  </Card>
+</CardGroup>
+
+Click the period buttons in the dashboard header to switch views. Charts and metrics recalculate instantly.
+
+---
+
+## Production Status KPIs
+
+The "Estado de Producción" section shows current snapshot metrics:
+
+<CardGroup cols={3}>
+  <Card title="Órdenes Abiertas" icon="folder-open">
+    Work orders in any non-delivered state:
+    - PENDIENTE
+    - PLANIFICADA
+    - EN_PROCESO
+    - PAUSADA
+    - FINALIZADA
+    - RETRABAJO
+  </Card>
+  
+  <Card title="En Proceso Ahora" icon="cog">
+    Work orders with status EN_PROCESO.
+    
+    Active production requiring attention.
+  </Card>
+  
+  <Card title="Atrasadas" icon="clock">
+    Work orders past commitment date.
+    
+    Displayed in red if > 0 for visibility.
+  </Card>
+  
+  <Card title="Cerradas" icon="check">
+    Work orders with status ENTREGADA in the selected period.
+    
+    Production completion metric.
+  </Card>
+  
+  <Card title="Tiempo Promedio" icon="stopwatch">
+    Average hours per closed work order.
+    
+    Calculated from operation logs for closed orders.
+  </Card>
+  
+  <Card title="Operarios Activos" icon="users">
+    Number of operators with current work order assignments.
+    
+    Indicates plant staffing level.
+  </Card>
+</CardGroup>
+
+### Alert Indicators
+
+The dashboard header displays active alert counts:
+
+- **🔴 Critical**: Work orders exceeding critical deviation thresholds
+- **🟡 Warning**: Work orders exceeding warning thresholds
+- **Sistema online**: Connection status indicator
+
+Alerts are clickable to jump to the alerts section below.
+
+---
+
+## Financial Summary
+
+The "Resumen Financiero Estimado" section aggregates costs and revenue:
+
+<CardGroup cols={2}>
+  <Card title="Facturación Estimada" icon="dollar-sign">
+    Sum of `estimatedCost` from closed work orders.
+    
+    Represents potential revenue from completed jobs.
+  </Card>
+  
+  <Card title="Ganancia Estimada" icon="arrow-up">
+    Sum of positive cost deviations.
+    
+    Work orders where estimated cost > actual material cost.
+  </Card>
+  
+  <Card title="Pérdida Estimada" icon="arrow-down">
+    Sum of negative cost deviations.
+    
+    Work orders where actual cost > estimated cost.
+  </Card>
+  
+  <Card title="Costo Real Materiales" icon="box">
+    Sum of all `MaterialConsumption` records.
+    
+    Actual inventory costs consumed in production.
+  </Card>
+  
+  <Card title="Margen Neto Estimado" icon="balance-scale">
+    Ganancia - Pérdida.
+    
+    Overall profitability indicator.
+    - Green if positive
+    - Red if negative
+  </Card>
+</CardGroup>
+
+<Note>
+  Financial metrics use estimates from quotations and actual material consumption. Labor costs are not yet included in margin calculations.
+</Note>
+
+---
+
+## Charts and Visualizations
+
+The dashboard includes four interactive charts using Recharts library:
+
+### 1. Production Trend (Line Chart)
+
+**Shows:** Monthly closed order volume and average hours per order
+
+**Data:**
+- **OTs cerradas**: Count of work orders closed each month
+- **Horas prom./OT**: Average hours worked per order
+
+**Use case:** Identify seasonal patterns, capacity trends, and efficiency changes over time.
+
+<Tabs>
+  <Tab title="Interpretation">
+    - **Rising closed orders**: Increasing production volume
+    - **Rising avg hours**: Decreasing efficiency or more complex jobs
+    - **Declining avg hours**: Improving efficiency or simpler jobs
+    - **Seasonal peaks**: Plan capacity for high-demand periods
+  </Tab>
+  
+  <Tab title="Data Source">
+    ```typescript
+    // Backend aggregation
+    const lineData = monthlyManagement.map((m) => ({
+      mes: m.monthLabel,       // e.g., "Ene 2026"
+      closedOrders: m.closedOrders,
+      avgHours: m.avgHours
+    }));
+    ```
+  </Tab>
+</Tabs>
+
+### 2. Order Status Distribution (Pie Chart)
+
+**Shows:** Current work order breakdown by status
+
+**Data:** Percentage distribution across:
+- Pendiente
+- Planificada
+- En proceso
+- Pausada
+- Finalizada
+- Entregada
+- Cancelada
+- Retrabajo
+
+**Use case:** Understand current pipeline composition and identify bottlenecks.
+
+<Info>
+  A high percentage in "En proceso" or "Pausada" may indicate resource constraints or blockers.
+</Info>
+
+### 3. Revenue vs Material Cost (Bar Chart)
+
+**Shows:** Monthly comparison of estimated revenue and actual material costs
+
+**Data:**
+- **Ingreso estimado**: Sum of `estimatedCost` for closed orders
+- **Costo materiales**: Sum of material consumption costs
+
+**Use case:** Track margin trends and identify months with high material costs.
+
+### 4. Monthly Margin (Stacked Bar Chart)
+
+**Shows:** Monthly profit/loss breakdown
+
+**Data:**
+- **Ganancia** (green): Positive cost deviations
+- **Pérdida** (red): Negative cost deviations
+
+**Use case:** Identify profitable vs unprofitable months, spot patterns in overruns.
+
+---
+
+## Operational Alerts
+
+The "Alertas operativas" panel displays work orders exceeding deviation thresholds:
+
+### Alert Severity Levels
+
+<CardGroup cols={2}>
+  <Card title="Warning (🟡)" icon="exclamation-triangle">
+    Work order exceeds **warning** thresholds:
+    - Time deviation > `warningTimeDeviationPct`
+    - OR cost deviation > `warningCostDeviationPct`
+    
+    Requires monitoring.
+  </Card>
+  
+  <Card title="Critical (🔴)" icon="exclamation-circle">
+    Work order exceeds **critical** thresholds:
+    - Time deviation > `criticalTimeDeviationPct`
+    - OR cost deviation > `criticalCostDeviationPct`
+    
+    Requires immediate attention.
+  </Card>
+</CardGroup>
+
+### Alert Display
+
+Each alert shows:
+- Work order code
+- Client name
+- Severity badge (WARNING / CRÍTICO)
+- Specific reasons:
+  - "Tiempo excedido en X%"
+  - "Costo excedido en X%"
+
+<Tabs>
+  <Tab title="No Alerts">
+    When all work orders are within thresholds:
+    
+    ```
+    ✅ Todas las órdenes dentro de los umbrales normales.
+    ```
+    
+    Green success message displays.
+  </Tab>
+  
+  <Tab title="Active Alerts">
+    List of work orders with deviations:
+    
+    ```
+    🟡 OT-2026-042 · Cliente ABC
+       Tiempo excedido en 25%
+    
+    🔴 OT-2026-038 · Cliente XYZ
+       Tiempo excedido en 45% · Costo excedido en 32%
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Operator Workload
+
+The "Carga por operario" panel shows current work order assignments:
+
+- **Horizontal bar chart**: Visual representation of load distribution
+- **Count**: Number of active work orders per operator
+- **Use case**: Balance workload, identify overallocated operators
+
+<Info>
+  Only operators with active assignments appear. Empty state displays if no assignments exist.
+</Info>
+
+---
+
+## Recent Orders Table
+
+The "Últimas órdenes ingresadas" table lists the most recent work orders:
+
+| Column | Description |
+|--------|-------------|
+| Código | Work order code |
+| Título | Work order title |
+| Cliente | Client name |
+| Estado | Current status with color-coded badge |
+
+**Badge colors:**
+- 🟢 Green: FINALIZADA, ENTREGADA
+- 🟡 Orange: EN_PROCESO, RETRABAJO
+- 🔴 Red: PAUSADA
+- ⚪ Default: PENDIENTE, PLANIFICADA, CANCELADA
+
+---
+
+## Productivity Report
+
+The **Reportes de Productividad** page provides detailed deviation analysis.
+
+### Accessing Reports
+
+Navigate to **Analytics** → **Productivity & Deviations**.
+
+### Report Metrics
+
+<CardGroup cols={4}>
+  <Card title="Ordenes Evaluadas" icon="list">
+    Total work orders in analysis period.
+  </Card>
+  
+  <Card title="Costo Materiales Real" icon="dollar-sign">
+    Sum of actual material consumption costs.
+  </Card>
+  
+  <Card title="Costo Estimado Producción" icon="calculator">
+    Sum of estimated costs from quotations.
+  </Card>
+  
+  <Card title="Alertas de Desvío" icon="bell">
+    Count of work orders exceeding thresholds.
+    
+    Red background if > 0.
+  </Card>
+</CardGroup>
+
+### Deviation Analysis Table
+
+The core report table shows per-order analysis:
+
+| Column | Calculation | Interpretation |
+|--------|-------------|----------------|
+| **OT** | Work order code | Identifier |
+| **Cliente** | Client name | Customer |
+| **H. Est.** | `estimatedTimeMin / 60` | Estimated hours from quotation |
+| **H. Real** | Sum of operation logs | Actual hours worked |
+| **Δ Tiempo** | `((real - estimated) / estimated) * 100` | Time overrun percentage |
+| **Δ Costo** | `((realCost - estimatedCost) / estimatedCost) * 100` | Cost overrun percentage |
+| **Estado** | Alert severity | OK / WARNING / CRITICAL |
+
+**Color coding:**
+- 🟢 Green: Deviation within acceptable range
+- 🟡 Orange: Exceeds warning threshold
+- 🔴 Red: Exceeds critical threshold
+
+### Filtering and Sorting
+
+<CardGroup cols={2}>
+  <Card title="Search" icon="search">
+    Filter by work order code or client name.
+    
+    Real-time filtering as you type.
+  </Card>
+  
+  <Card title="Status Filter" icon="filter">
+    Show only specific work order statuses:
+    - PENDIENTE
+    - EN_PROCESO
+    - FINALIZADA
+    - etc.
+  </Card>
+  
+  <Card title="Sort Columns" icon="sort">
+    Click column headers to sort by:
+    - Code
+    - Client
+    - Estimated hours
+    - Worked hours
+    - Time deviation %
+    - Cost deviation %
+    
+    Toggle ascending/descending.
+  </Card>
+  
+  <Card title="Multi-Criteria">
+    Combine search + status filter for precise analysis.
+    
+    Example: Find all FINALIZADA orders for client "ABC" with high cost deviation.
+  </Card>
+</CardGroup>
+
+### Overdue Orders
+
+The "Ordenes Atrasadas" card lists work orders past their commitment date:
+
+- Work order code
+- Client name
+- Original commitment date (in red)
+
+<Info>
+  Only orders with `commitmentDate` in the past and not yet ENTREGADA appear here.
+</Info>
+
+### Operator Hours Distribution
+
+The "Distribución de Horas" card shows hours worked per operator:
+
+- Aggregates operation logs by operator
+- Displays total hours worked in analysis period
+- Helps identify high performers and capacity utilization
+
+### Threshold Configuration
+
+The bottom card displays current deviation thresholds:
+
+```
+**W:** T >20% / C >15%  (Warning)
+**C:** T >40% / C >30%  (Critical)
+```
+
+- **T**: Time deviation
+- **C**: Cost deviation
+- **W**: Warning level
+- **C**: Critical level
+
+Thresholds are set in **Resources & Capacity** → **Company Settings**.
+
+---
+
+## Understanding Deviations
+
+### Time Deviation
+
+Measures actual hours vs estimated hours:
+
+```typescript
+timeDeviationPct = ((workedHours - estimatedHours) / estimatedHours) * 100
+```
+
+**Examples:**
+- Estimated 10h, worked 12h = **+20%** deviation
+- Estimated 10h, worked 8h = **-20%** deviation (under time, positive outcome)
+
+**Causes of high time deviation:**
+- Inaccurate initial estimates
+- Unexpected complexity
+- Rework or quality issues
+- Equipment downtime
+- Material delays
+
+### Cost Deviation
+
+Measures actual material cost vs estimated cost:
+
+```typescript
+costDeviationPct = ((realMaterialCost - estimatedCost) / estimatedCost) * 100
+```
+
+**Examples:**
+- Estimated $1000, spent $1200 = **+20%** deviation
+- Estimated $1000, spent $900 = **-10%** deviation (cost savings)
+
+**Causes of high cost deviation:**
+- Material price increases
+- Higher scrap/waste than planned
+- Specification changes
+- Rework material consumption
+- Inaccurate quantity estimates
+
+<Warning>
+  Positive deviations indicate overruns. Negative deviations can indicate good performance OR under-recording consumption.
+</Warning>
+
+---
+
+## Dashboard Data Flow
+
+<Steps>
+  <Step title="User selects period">
+    Period selector (3M, 6M, 12M) updates query parameter.
+  </Step>
+  
+  <Step title="API request">
+    Frontend calls:
+    ```typescript
+    GET /api/reports/dashboard?months=12
+    ```
+  </Step>
+  
+  <Step title="Backend aggregation">
+    Backend queries database:
+    - Count work orders by status
+    - Sum costs and hours
+    - Calculate deviations
+    - Aggregate by month
+    - Identify alerts
+  </Step>
+  
+  <Step title="Response structure">
+    Returns:
+    ```typescript
+    {
+      kpis: { openCount, inProcessCount, delayedCount, ... },
+      managementAnnual: { closedOrders, avgHoursPerOrder, revenueEstimated, ... },
+      monthlyManagement: [{ monthKey, closedOrders, revenue, ... }],
+      statusBreakdown: [{ status, count }],
+      deviationAlerts: [{ id, code, severity, reasons }],
+      recentOrders: [...],
+      delayedOrders: [...],
+      operatorLoad: [{ userId, fullName, count }]
+    }
+    ```
+  </Step>
+  
+  <Step title="Frontend rendering">
+    React components render:
+    - KPI cards with formatted numbers
+    - Recharts visualizations
+    - Alert lists with conditionals
+    - Tables with sorting/filtering
+  </Step>
+</Steps>
+
+---
+
+## Best Practices
+
+<Card title="Dashboard Usage" icon="lightbulb">
+  **Daily:**
+  - Check alert counts in header
+  - Review "Atrasadas" count for overdue work
+  - Monitor "En proceso" to ensure progress
+  - Review operator workload for balance
+  
+  **Weekly:**
+  - Analyze production trend chart for capacity issues
+  - Review alert details and assign corrective actions
+  - Check status distribution for pipeline health
+  
+  **Monthly:**
+  - Switch to 3M view for recent trends
+  - Compare monthly margins to identify seasonal patterns
+  - Review cost vs revenue gap
+  - Analyze productivity report for top deviation causes
+  
+  **Quarterly:**
+  - Use 12M view for annual performance
+  - Review operator hours distribution
+  - Adjust deviation thresholds if needed
+  - Export data for external reporting
+</Card>
+
+<Card title="Deviation Management" icon="chart-line">
+  **Proactive:**
+  - Set realistic warning thresholds (20-25% time, 15-20% cost)
+  - Monitor alerts daily, don't wait for critical
+  - Document deviation causes in work order notes
+  - Review quotation accuracy quarterly
+  
+  **Reactive:**
+  - Investigate critical alerts immediately
+  - Root cause analysis for repeated deviations
+  - Update estimation formulas based on historical data
+  - Train estimators on common overrun patterns
+  
+  **Long-term:**
+  - Track deviation trends to validate threshold settings
+  - Build estimation databases from actual performance
+  - Implement continuous improvement on high-deviation patterns
+</Card>
+
+---
+
+## API Endpoints
+
+<Tabs>
+  <Tab title="Dashboard">
+    ```typescript
+    // Get dashboard data
+    GET /api/reports/dashboard?months={3|6|12}
+    
+    Response: {
+      kpis: {
+        openCount: number;
+        inProcessCount: number;
+        finishedCount: number;
+        delayedCount: number;
+        hoursToday: number;
+        operatorsActive: number;
+        estimatedVsReal: { estimatedTotal: number; realTotal: number };
+        alerts: { total: number; warning: number; critical: number };
+      };
+      managementAnnual: {
+        periodLabel: string;
+        closedOrders: number;
+        avgHoursPerOrder: number;
+        revenueEstimated: number;
+        materialCostReal: number;
+        gainEstimated: number;
+        lossEstimated: number;
+        marginEstimated: number;
+      };
+      monthlyManagement: Array<{
+        monthKey: string;
+        monthLabel: string;
+        closedOrders: number;
+        avgHours: number;
+        revenue: number;
+        materialCost: number;
+        gain: number;
+        loss: number;
+      }>;
+      statusBreakdown: Array<{ status: string; count: number }>;
+      deviationAlerts: Array<{
+        id: string;
+        code: string;
+        client: string;
+        severity: 'warning' | 'critical';
+        reasons: string[];
+      }>;
+      recentOrders: Array<WorkOrder>;
+      delayedOrders: Array<WorkOrder>;
+      operatorLoad: Array<{ userId: string; fullName: string; count: number }>;
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Productivity Report">
+    ```typescript
+    // Get productivity/deviation report
+    GET /api/reports/productivity
+    
+    Response: {
+      thresholds: {
+        warningTimeDeviationPct: number;
+        criticalTimeDeviationPct: number;
+        warningCostDeviationPct: number;
+        criticalCostDeviationPct: number;
+      };
+      alerts: Array<{
+        id: string;
+        code: string;
+        client: string;
+        alertSeverity: 'ok' | 'warning' | 'critical';
+        timeDeviationPct: number;
+        costDeviationPct: number;
+      }>;
+      hoursByOrder: Array<{
+        id: string;
+        code: string;
+        status: string;
+        client: string;
+        estimatedHours: number;
+        workedHours: number;
+        estimatedCost: number;
+        realMaterialCost: number;
+        timeDeviationHours: number;
+        costDeviation: number;
+        timeDeviationPct: number;
+        costDeviationPct: number;
+        alertSeverity: 'ok' | 'warning' | 'critical';
+      }>;
+      hoursByOperator: Array<{ operator: string; hours: number }>;
+      overdueOrders: Array<{ id: string; code: string; client: string; status: string; commitmentDate: string }>;
+      totals: {
+        orders: number;
+        estimatedCost: number;
+        realMaterialCost: number;
+      };
+    }
+    ```
+  </Tab>
+</Tabs>

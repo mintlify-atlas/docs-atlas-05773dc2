@@ -1,0 +1,474 @@
+---
+title: 'Reports'
+description: 'Analytics and reporting endpoints for dashboards and insights'
+icon: 'chart-line'
+---
+
+## Overview
+
+Report endpoints provide aggregated analytics and insights for dashboards, productivity tracking, and business intelligence.
+
+---
+
+## GET /api/reports/dashboard
+
+Get comprehensive dashboard data including KPIs and metrics.
+
+**Authentication**: Required (JWT)
+
+**Roles**: All authenticated users (data filtered by role)
+
+### Response
+
+Returns a dashboard object with various metrics and KPIs.
+
+<ResponseField name="workOrdersStats" type="object">
+  Work order statistics
+  
+  <Expandable title="Work order stats properties">
+    <ResponseField name="total" type="number">
+      Total work orders
+    </ResponseField>
+    
+    <ResponseField name="pending" type="number">
+      Work orders in PENDIENTE status
+    </ResponseField>
+    
+    <ResponseField name="inProgress" type="number">
+      Work orders in EN_PROCESO status
+    </ResponseField>
+    
+    <ResponseField name="completed" type="number">
+      Work orders in FINALIZADA status
+    </ResponseField>
+    
+    <ResponseField name="delivered" type="number">
+      Work orders in ENTREGADA status
+    </ResponseField>
+    
+    <ResponseField name="delayed" type="number">
+      Work orders past commitment date
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="quotationsStats" type="object">
+  Quotation statistics
+  
+  <Expandable title="Quotation stats properties">
+    <ResponseField name="total" type="number">
+      Total quotations
+    </ResponseField>
+    
+    <ResponseField name="draft" type="number">
+      Quotations in BORRADOR status
+    </ResponseField>
+    
+    <ResponseField name="sent" type="number">
+      Quotations in ENVIADO status
+    </ResponseField>
+    
+    <ResponseField name="approved" type="number">
+      Quotations in APROBADO status
+    </ResponseField>
+    
+    <ResponseField name="rejected" type="number">
+      Quotations in RECHAZADO status
+    </ResponseField>
+    
+    <ResponseField name="conversionRate" type="number">
+      Percentage of quotations converted to work orders
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="resourcesStats" type="object">
+  Resource utilization statistics
+  
+  <Expandable title="Resource stats properties">
+    <ResponseField name="total" type="number">
+      Total resources
+    </ResponseField>
+    
+    <ResponseField name="available" type="number">
+      Resources in DISPONIBLE status
+    </ResponseField>
+    
+    <ResponseField name="busy" type="number">
+      Resources in OCUPADO status
+    </ResponseField>
+    
+    <ResponseField name="maintenance" type="number">
+      Resources in MANTENIMIENTO status
+    </ResponseField>
+    
+    <ResponseField name="utilizationRate" type="number">
+      Percentage of resources currently in use
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="materialsStats" type="object">
+  Material inventory statistics
+  
+  <Expandable title="Material stats properties">
+    <ResponseField name="total" type="number">
+      Total materials tracked
+    </ResponseField>
+    
+    <ResponseField name="lowStock" type="number">
+      Materials below minimum stock level
+    </ResponseField>
+    
+    <ResponseField name="totalValue" type="number">
+      Total inventory value
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="recentActivity" type="array">
+  Recent operation logs and events
+</ResponseField>
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.example.com/api/reports/dashboard \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://api.example.com/api/reports/dashboard',
+  {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  }
+);
+
+const dashboard = await response.json();
+console.log('Work orders in progress:', dashboard.workOrdersStats.inProgress);
+console.log('Resource utilization:', dashboard.resourcesStats.utilizationRate);
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    'https://api.example.com/api/reports/dashboard',
+    headers={'Authorization': f'Bearer {access_token}'}
+)
+
+dashboard = response.json()
+print(f"Delayed orders: {dashboard['workOrdersStats']['delayed']}")
+```
+</CodeGroup>
+
+---
+
+## GET /api/reports/productivity
+
+Get detailed productivity metrics and performance analysis.
+
+**Authentication**: Required (JWT)
+
+**Roles**: All authenticated users
+
+### Query Parameters
+
+<ParamField query="from" type="string">
+  Start date for analysis (ISO 8601)
+</ParamField>
+
+<ParamField query="to" type="string">
+  End date for analysis (ISO 8601)
+</ParamField>
+
+<ParamField query="clientId" type="string">
+  Filter by specific client
+</ParamField>
+
+<ParamField query="operatorId" type="string">
+  Filter by specific operator/user
+</ParamField>
+
+<ParamField query="status" type="string">
+  Filter by work order status
+</ParamField>
+
+### Response
+
+Returns detailed productivity metrics.
+
+<ResponseField name="summary" type="object">
+  Overall productivity summary
+  
+  <Expandable title="Summary properties">
+    <ResponseField name="totalWorkOrders" type="number">
+      Total work orders in period
+    </ResponseField>
+    
+    <ResponseField name="completedWorkOrders" type="number">
+      Completed work orders
+    </ResponseField>
+    
+    <ResponseField name="totalEstimatedHours" type="number">
+      Total estimated time (hours)
+    </ResponseField>
+    
+    <ResponseField name="totalActualHours" type="number">
+      Total actual time spent (hours)
+    </ResponseField>
+    
+    <ResponseField name="avgEfficiency" type="number">
+      Average efficiency percentage
+    </ResponseField>
+    
+    <ResponseField name="onTimeDeliveryRate" type="number">
+      Percentage of on-time deliveries
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="byOperator" type="array">
+  Productivity breakdown by operator
+  
+  <Expandable title="Operator metrics">
+    <ResponseField name="operatorId" type="string">
+      Operator user ID
+    </ResponseField>
+    
+    <ResponseField name="operatorName" type="string">
+      Operator full name
+    </ResponseField>
+    
+    <ResponseField name="workOrdersCompleted" type="number">
+      Work orders completed
+    </ResponseField>
+    
+    <ResponseField name="totalHours" type="number">
+      Total hours worked
+    </ResponseField>
+    
+    <ResponseField name="efficiency" type="number">
+      Efficiency percentage
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="byClient" type="array">
+  Productivity breakdown by client
+  
+  <Expandable title="Client metrics">
+    <ResponseField name="clientId" type="string">
+      Client ID
+    </ResponseField>
+    
+    <ResponseField name="clientName" type="string">
+      Client name
+    </ResponseField>
+    
+    <ResponseField name="workOrders" type="number">
+      Work orders for this client
+    </ResponseField>
+    
+    <ResponseField name="totalRevenue" type="number">
+      Total revenue (estimated cost)
+    </ResponseField>
+    
+    <ResponseField name="avgLeadTime" type="number">
+      Average lead time (days)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="timelineData" type="array">
+  Daily/weekly productivity timeline
+  
+  <Expandable title="Timeline data points">
+    <ResponseField name="date" type="string">
+      Date (ISO 8601)
+    </ResponseField>
+    
+    <ResponseField name="workOrdersStarted" type="number">
+      Work orders started on this date
+    </ResponseField>
+    
+    <ResponseField name="workOrdersCompleted" type="number">
+      Work orders completed on this date
+    </ResponseField>
+    
+    <ResponseField name="hoursWorked" type="number">
+      Total hours worked
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="deviationAnalysis" type="object">
+  Analysis of estimated vs actual performance
+  
+  <Expandable title="Deviation properties">
+    <ResponseField name="avgTimeDeviation" type="number">
+      Average time deviation (percentage)
+    </ResponseField>
+    
+    <ResponseField name="avgCostDeviation" type="number">
+      Average cost deviation (percentage)
+    </ResponseField>
+    
+    <ResponseField name="ordersOverBudget" type="number">
+      Number of orders over budget
+    </ResponseField>
+    
+    <ResponseField name="ordersOverSchedule" type="number">
+      Number of orders behind schedule
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.example.com/api/reports/productivity?from=2026-03-01T00:00:00Z&to=2026-03-31T23:59:59Z" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://api.example.com/api/reports/productivity?from=2026-03-01T00:00:00Z&to=2026-03-31T23:59:59Z',
+  {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  }
+);
+
+const productivity = await response.json();
+console.log('Overall efficiency:', productivity.summary.avgEfficiency);
+console.log('On-time delivery rate:', productivity.summary.onTimeDeliveryRate);
+```
+
+```python Python
+import requests
+from datetime import datetime, timedelta
+
+# Last 30 days
+end_date = datetime.now()
+start_date = end_date - timedelta(days=30)
+
+response = requests.get(
+    'https://api.example.com/api/reports/productivity',
+    params={
+        'from': start_date.isoformat(),
+        'to': end_date.isoformat()
+    },
+    headers={'Authorization': f'Bearer {access_token}'}
+)
+
+productivity = response.json()
+for operator in productivity['byOperator']:
+    print(f"{operator['operatorName']}: {operator['efficiency']}% efficiency")
+```
+</CodeGroup>
+
+---
+
+## GET /api/reports/status
+
+Check the reports service status.
+
+**Authentication**: None (public endpoint)
+
+### Response
+
+<ResponseField name="status" type="string">
+  Service status
+</ResponseField>
+
+---
+
+## Key Metrics Explained
+
+<CardGroup cols={2}>
+  <Card title="Efficiency" icon="gauge-high">
+    Ratio of estimated time to actual time. Higher is better. Formula: `(estimated / actual) × 100`
+  </Card>
+  
+  <Card title="On-Time Delivery" icon="clock">
+    Percentage of work orders delivered by commitment date. Formula: `(onTime / total) × 100`
+  </Card>
+  
+  <Card title="Utilization Rate" icon="chart-pie">
+    Percentage of resources actively in use. Formula: `(busy / total) × 100`
+  </Card>
+  
+  <Card title="Conversion Rate" icon="funnel">
+    Percentage of quotations converted to work orders. Formula: `(converted / approved) × 100`
+  </Card>
+</CardGroup>
+
+---
+
+## Example Use Cases
+
+<Tabs>
+  <Tab title="Monthly Performance Review">
+    ```javascript
+    // Get last month's productivity data
+    const lastMonth = new Date();
+    lastMonth.setMonth(lastMonth.getMonth() - 1);
+    
+    const from = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1);
+    const to = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0);
+    
+    const response = await fetch(
+      `https://api.example.com/api/reports/productivity?from=${from.toISOString()}&to=${to.toISOString()}`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+    
+    const data = await response.json();
+    console.log('Monthly efficiency:', data.summary.avgEfficiency);
+    ```
+  </Tab>
+  
+  <Tab title="Operator Leaderboard">
+    ```javascript
+    // Get operator performance for current quarter
+    const response = await fetch(
+      'https://api.example.com/api/reports/productivity',
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+    
+    const data = await response.json();
+    const topOperators = data.byOperator
+      .sort((a, b) => b.efficiency - a.efficiency)
+      .slice(0, 5);
+    
+    topOperators.forEach((op, i) => {
+      console.log(`${i + 1}. ${op.operatorName} - ${op.efficiency}%`);
+    });
+    ```
+  </Tab>
+  
+  <Tab title="Client Analysis">
+    ```javascript
+    // Analyze client profitability
+    const response = await fetch(
+      'https://api.example.com/api/reports/productivity',
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+    
+    const data = await response.json();
+    const topClients = data.byClient
+      .sort((a, b) => b.totalRevenue - a.totalRevenue)
+      .slice(0, 10);
+    
+    topClients.forEach(client => {
+      console.log(`${client.clientName}: $${client.totalRevenue} revenue`);
+    });
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  Productivity metrics are calculated based on operation logs and work order timestamps. Ensure operators are consistently logging start, pause, and completion events for accurate reporting.
+</Note>

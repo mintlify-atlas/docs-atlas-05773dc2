@@ -1,0 +1,691 @@
+---
+title: 'Work Orders'
+description: 'Production work order management and tracking endpoints'
+icon: 'clipboard-list'
+---
+
+## Overview
+
+Work order endpoints manage production orders, assignments, status tracking, events, and material consumption. Work orders are the core operational entity in the MES system.
+
+---
+
+## GET /api/work-orders
+
+Retrieve all work orders with optional filtering.
+
+**Authentication**: Required (JWT)
+
+**Roles**: All authenticated users
+
+### Query Parameters
+
+<ParamField query="status" type="string">
+  Filter by status: `PENDIENTE`, `PLANIFICADA`, `EN_PROCESO`, `PAUSADA`, `FINALIZADA`, `ENTREGADA`, `CANCELADA`, or `RETRABAJO`
+</ParamField>
+
+<ParamField query="search" type="string">
+  Search by code, title, or description
+</ParamField>
+
+<ParamField query="assignedToMe" type="string">
+  Filter by assignments to current user (value: `true` or `false`)
+</ParamField>
+
+### Response
+
+Returns an array of work order objects.
+
+<ResponseField name="id" type="string">
+  Work order unique identifier
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  Work order code (e.g., OT-2026-001)
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Work order title
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Detailed description
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current status
+</ResponseField>
+
+<ResponseField name="priority" type="number">
+  Priority level (1 = highest, 5 = lowest)
+</ResponseField>
+
+<ResponseField name="clientId" type="string">
+  Associated client ID
+</ResponseField>
+
+<ResponseField name="quotationId" type="string">
+  Source quotation ID (if converted from quotation)
+</ResponseField>
+
+<ResponseField name="plannedDate" type="string">
+  ISO 8601 planned start date
+</ResponseField>
+
+<ResponseField name="commitmentDate" type="string">
+  ISO 8601 delivery commitment date
+</ResponseField>
+
+<ResponseField name="estimatedTimeMin" type="number">
+  Estimated time in minutes
+</ResponseField>
+
+<ResponseField name="estimatedCost" type="number">
+  Estimated cost
+</ResponseField>
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.example.com/api/work-orders?status=EN_PROCESO&assignedToMe=true" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://api.example.com/api/work-orders?status=EN_PROCESO',
+  {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  }
+);
+
+const workOrders = await response.json();
+```
+</CodeGroup>
+
+---
+
+## GET /api/work-orders/:id
+
+Retrieve a specific work order with all related data.
+
+**Authentication**: Required (JWT)
+
+**Roles**: All authenticated users
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+### Response
+
+Returns a work order object with nested assignments, operation logs, and material consumptions.
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.example.com/api/work-orders/clx1234567890 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+</CodeGroup>
+
+---
+
+## POST /api/work-orders
+
+Create a new work order manually.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Request Body
+
+<ParamField body="code" type="string" required>
+  Unique work order code (e.g., OT-2026-042)
+</ParamField>
+
+<ParamField body="title" type="string" required>
+  Work order title
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  Detailed description
+</ParamField>
+
+<ParamField body="clientId" type="string" required>
+  Client ID
+</ParamField>
+
+<ParamField body="quotationId" type="string">
+  Optional source quotation ID
+</ParamField>
+
+<ParamField body="priority" type="number" required>
+  Priority (1-5, where 1 is highest)
+</ParamField>
+
+<ParamField body="plannedDate" type="string">
+  ISO 8601 planned start date
+</ParamField>
+
+<ParamField body="commitmentDate" type="string">
+  ISO 8601 delivery commitment date
+</ParamField>
+
+<ParamField body="estimatedTimeMin" type="number" required>
+  Estimated time in minutes (minimum 0)
+</ParamField>
+
+<ParamField body="estimatedCost" type="number" required>
+  Estimated cost (minimum 0)
+</ParamField>
+
+<ParamField body="notes" type="string">
+  Additional notes
+</ParamField>
+
+<ParamField body="dashboardUrl" type="string">
+  External dashboard URL (e.g., Grafana)
+</ParamField>
+
+### Response
+
+Returns the created work order object.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.example.com/api/work-orders \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "OT-2026-042",
+    "title": "Steel Frame Assembly",
+    "description": "Assemble steel frames per drawing #42",
+    "clientId": "clx_client_123",
+    "priority": 2,
+    "commitmentDate": "2026-04-15T00:00:00Z",
+    "estimatedTimeMin": 4800,
+    "estimatedCost": 15000.00
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.example.com/api/work-orders', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    code: 'OT-2026-042',
+    title: 'Steel Frame Assembly',
+    description: 'Assemble steel frames per drawing #42',
+    clientId: 'clx_client_123',
+    priority: 2,
+    estimatedTimeMin: 4800,
+    estimatedCost: 15000.00
+  })
+});
+
+const workOrder = await response.json();
+```
+</CodeGroup>
+
+---
+
+## POST /api/work-orders/from-quotation/:quotationId
+
+Create a work order from an approved quotation.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="quotationId" type="string" required>
+  Source quotation ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="code" type="string" required>
+  Unique work order code
+</ParamField>
+
+<ParamField body="commitmentDate" type="string">
+  ISO 8601 delivery commitment date
+</ParamField>
+
+### Response
+
+Returns the created work order object with data copied from the quotation.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.example.com/api/work-orders/from-quotation/clx_quot_123 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "code": "OT-2026-042",
+    "commitmentDate": "2026-04-15T00:00:00Z"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  `https://api.example.com/api/work-orders/from-quotation/${quotationId}`,
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      code: 'OT-2026-042',
+      commitmentDate: '2026-04-15T00:00:00Z'
+    })
+  }
+);
+
+const workOrder = await response.json();
+```
+</CodeGroup>
+
+---
+
+## PATCH /api/work-orders/:id
+
+Update work order details.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+### Request Body
+
+All fields are optional. Only include fields to update.
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH https://api.example.com/api/work-orders/clx1234567890 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "priority": 1,
+    "commitmentDate": "2026-04-10T00:00:00Z"
+  }'
+```
+</CodeGroup>
+
+---
+
+## PATCH /api/work-orders/:id/status
+
+Change work order status.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`, `OPERARIO`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="status" type="string" required>
+  New status: `PENDIENTE`, `PLANIFICADA`, `EN_PROCESO`, `PAUSADA`, `FINALIZADA`, `ENTREGADA`, `CANCELADA`, or `RETRABAJO`
+</ParamField>
+
+<ParamField body="note" type="string">
+  Optional note about the status change
+</ParamField>
+
+### Response
+
+Returns the updated work order object.
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH https://api.example.com/api/work-orders/clx1234567890/status \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "EN_PROCESO",
+    "note": "Started production"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  `https://api.example.com/api/work-orders/${workOrderId}/status`,
+  {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      status: 'EN_PROCESO',
+      note: 'Started production'
+    })
+  }
+);
+```
+</CodeGroup>
+
+---
+
+## POST /api/work-orders/:id/assignments
+
+Assign a resource (machine or operator) to a work order.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="resourceId" type="string" required>
+  Resource ID to assign
+</ParamField>
+
+<ParamField body="userId" type="string">
+  Optional user ID (for human resources)
+</ParamField>
+
+### Response
+
+Returns the created assignment object.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.example.com/api/work-orders/clx1234567890/assignments \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "resourceId": "clx_resource_123",
+    "userId": "clx_user_456"
+  }'
+```
+</CodeGroup>
+
+---
+
+## POST /api/work-orders/:id/events
+
+Add an operation event to the work order timeline.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`, `OPERARIO`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="eventType" type="string" required>
+  Event type: `OT_CREADA`, `ASIGNADO`, `INICIO`, `PAUSA`, `REANUDACION`, `FINALIZACION`, `CAMBIO_ESTADO`, `MATERIAL_CONSUMIDO`, or `NOTA`
+</ParamField>
+
+<ParamField body="resourceId" type="string">
+  Optional resource ID associated with event
+</ParamField>
+
+<ParamField body="pauseReason" type="string">
+  Required for `PAUSA` event type
+</ParamField>
+
+<ParamField body="note" type="string">
+  Optional note or comment
+</ParamField>
+
+### Response
+
+Returns the created operation log entry.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.example.com/api/work-orders/clx1234567890/events \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "eventType": "INICIO",
+    "resourceId": "clx_resource_123",
+    "note": "Starting welding operations"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  `https://api.example.com/api/work-orders/${workOrderId}/events`,
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      eventType: 'PAUSA',
+      pauseReason: 'Equipment maintenance required',
+      note: 'Scheduled maintenance on welder'
+    })
+  }
+);
+```
+</CodeGroup>
+
+---
+
+## POST /api/work-orders/:id/consumptions
+
+Record material consumption for a work order.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`, `OPERARIO`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="materialId" type="string" required>
+  Material ID to consume
+</ParamField>
+
+<ParamField body="quantity" type="number" required>
+  Quantity consumed (minimum 0.001)
+</ParamField>
+
+<ParamField body="note" type="string">
+  Optional note about consumption
+</ParamField>
+
+### Response
+
+Returns the created material consumption record.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.example.com/api/work-orders/clx1234567890/consumptions \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "materialId": "clx_material_789",
+    "quantity": 5.5,
+    "note": "Used for welding joints"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  `https://api.example.com/api/work-orders/${workOrderId}/consumptions`,
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      materialId: 'clx_material_789',
+      quantity: 5.5,
+      note: 'Used for welding joints'
+    })
+  }
+);
+```
+</CodeGroup>
+
+<Note>
+  Material consumption automatically decrements the material stock and records the cost snapshot at the time of consumption.
+</Note>
+
+---
+
+## POST /api/work-orders/:id/close-delivery
+
+Close and mark work order as delivered.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+### Request Body
+
+See controller for CloseDeliveryDto schema.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.example.com/api/work-orders/clx1234567890/close-delivery \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+</CodeGroup>
+
+---
+
+## POST /api/work-orders/:id/attachment
+
+Update work order attachment URL.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="attachmentUrl" type="string" required>
+  URL of the attachment (e.g., signed delivery slip)
+</ParamField>
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.example.com/api/work-orders/clx1234567890/attachment \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"attachmentUrl": "/uploads/delivery-slip-123.pdf"}'
+```
+</CodeGroup>
+
+---
+
+## DELETE /api/work-orders/:id/attachment
+
+Remove work order attachment.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID
+</ParamField>
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE https://api.example.com/api/work-orders/clx1234567890/attachment \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+</CodeGroup>
+
+---
+
+## DELETE /api/work-orders/:id
+
+Delete a work order.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Work order ID to delete
+</ParamField>
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE https://api.example.com/api/work-orders/clx1234567890 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+</CodeGroup>
+
+<Warning>
+  Deleting a work order will cascade delete all related assignments, operation logs, and material consumptions.
+</Warning>
+
+---
+
+## GET /api/work-orders/status
+
+Check the work orders service status.
+
+**Authentication**: None (public endpoint)
+
+### Response
+
+<ResponseField name="status" type="string">
+  Service status
+</ResponseField>

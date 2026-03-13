@@ -1,0 +1,604 @@
+---
+title: Security Best Practices
+description: Comprehensive guide to securing your DRAIT Mini-MES deployment
+---
+
+## Overview
+
+DRAIT Mini-MES implements multiple security layers to protect your manufacturing data. This guide covers authentication, authorization, rate limiting, and production hardening.
+
+## Security Architecture
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key">
+    JWT tokens with configurable expiration and secret validation
+  </Card>
+  <Card title="Password Hashing" icon="lock">
+    bcrypt with 10 salt rounds for secure password storage
+  </Card>
+  <Card title="Rate Limiting" icon="gauge">
+    Throttling on sensitive endpoints to prevent brute force
+  </Card>
+  <Card title="CORS Protection" icon="shield">
+    Restricted origins to prevent unauthorized access
+  </Card>
+  <Card title="Role-Based Access" icon="user-shield">
+    Guards enforce permissions per user role
+  </Card>
+  <Card title="Audit Logging" icon="clipboard-list">
+    Complete trail of all system changes with before/after snapshots
+  </Card>
+</CardGroup>
+
+## Authentication (JWT)
+
+### JWT Configuration
+
+JSON Web Tokens are used for stateless authentication:
+
+```typescript apps/backend/src/main.ts
+const WEAK_SECRETS = ['change_this_secret', 'secret', 'changeme', 'jwt_secret'];
+
+if (process.env.NODE_ENV === 'production' && WEAK_SECRETS.includes(jwtSecret.toLowerCase())) {
+  logger.error(
+    '❌ [SECURITY] JWT_SECRET tiene un valor débil o por defecto. '
+    'Definí un JWT_SECRET fuerte en el .env antes de iniciar en producción.'
+  );
+  process.exit(1);
+} else if (WEAK_SECRETS.includes(jwtSecret.toLowerCase())) {
+  logger.warn('⚠️ [SECURITY] JWT_SECRET usa el valor por defecto. Cambiálo antes de producir.');
+}
+```
+
+<Warning>
+  **CRITICAL:** The backend refuses to start in production mode if `JWT_SECRET` is weak. This prevents accidental deployment with default credentials.
+</Warning>
+
+### JWT Token Structure
+
+Tokens contain user identity and permissions:
+
+```json
+{
+  "sub": "uuid-of-user",
+  "email": "user@company.com",
+  "role": "DUENO",
+  "companyId": "uuid-of-company",
+  "fullName": "Juan García",
+  "iat": 1710331200,
+  "exp": 1710360000
+}
+```
+
+### JWT Guard Implementation
+
+```typescript apps/backend/src/common/auth/jwt-auth.guard.ts
+@Injectable()
+export class JwtAuthGuard implements CanActivate {
+  private readonly jwtService = new JwtService();
+
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest();
+    const authHeader = request.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Token ausente o invalido');
+    }
+
+    const token = authHeader.slice(7);
+
+    try {
+      const payload = this.jwtService.verify<JwtUser>(token, {
+        secret: process.env.JWT_SECRET ?? 'change_this_secret'
+      });
+
+      request.user = payload;
+      return true;
+    } catch {
+      throw new UnauthorizedException('Sesion expirada o token invalido');
+    }
+  }
+}
+```
+
+### Secure JWT Secret
+
+Generate a cryptographically secure secret:
+
+```bash
+# Using OpenSSL (recommended)
+openssl rand -base64 48
+
+# Using Node.js
+node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
+
+# Using Python
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+<Steps>
+  <Step title="Generate Secret">
+    Run one of the commands above to generate a random string.
+  </Step>
+
+  <Step title="Update .env">
+    ```bash .env
+    JWT_SECRET=your_generated_secret_here
+    ```
+  </Step>
+
+  <Step title="Verify">
+    ```bash
+    docker compose up -d
+    docker compose logs backend | grep SECURITY
+    ```
+
+    You should see no security warnings.
+  </Step>
+</Steps>
+
+### Token Expiration
+
+Configure token lifetime based on security requirements:
+
+```bash .env
+# High security - shorter sessions
+JWT_EXPIRES_IN=1h
+
+# Balanced (recommended)
+JWT_EXPIRES_IN=8h
+
+# Development convenience
+JWT_EXPIRES_IN=24h
+```
+
+<Note>
+  Tokens expire after the configured time. Users must login again. There is no refresh token mechanism currently.
+</Note>
+
+## Password Security
+
+### Bcrypt Hashing
+
+Passwords are hashed with bcrypt before storage:
+
+```typescript seed.ts
+const passwordHash = await bcrypt.hash('ChangeMe123!', 10);
+```
+
+The backend uses 10 salt rounds, providing strong protection against brute force while maintaining performance.
+
+### Password Requirements
+
+<Warning>
+  **TODO:** The current system does NOT enforce password complexity. This should be implemented before production use.
+</Warning>
+
+Recommended password policy (to be implemented):
+- Minimum 12 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one number
+- At least one special character
+- Not in common password lists
+
+### Default Passwords
+
+<Warning>
+  **CRITICAL:** The seed script creates users with password `ChangeMe123!`. Change these immediately:
+
+  1. Login as each user
+  2. Navigate to user settings
+  3. Change password
+
+  Or use the backend API:
+  ```bash
+  curl -X PATCH http://localhost/api/users/:id/password \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"newPassword": "NewSecurePassword123!"}'
+  ```
+</Warning>
+
+## Rate Limiting
+
+### Global Throttling
+
+NestJS Throttler protects all endpoints:
+
+```typescript apps/backend/src/app.module.ts
+@Module({
+  imports: [
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 20 }]),
+    // ...
+  ]
+})
+export class AppModule {}
+```
+
+**Configuration:**
+- **TTL:** 60,000ms (60 seconds)
+- **Limit:** 20 requests per window
+
+<Info>
+  Any IP making more than 20 requests in 60 seconds receives HTTP 429 (Too Many Requests).
+</Info>
+
+### Login Rate Limiting
+
+The login endpoint has stricter throttling:
+
+**Implementation:** 5 login attempts per minute per IP
+
+This prevents brute force attacks on user credentials.
+
+```typescript
+// Login endpoint is protected by rate limiting
+// configured in the AuthController
+```
+
+### Customizing Rate Limits
+
+Adjust limits based on your environment:
+
+```typescript apps/backend/src/app.module.ts
+// More restrictive (high security)
+ThrottlerModule.forRoot([{ ttl: 60000, limit: 10 }])
+
+// More permissive (development)
+ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }])
+
+// Per-minute limit
+ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }])
+```
+
+## Role-Based Access Control (RBAC)
+
+### User Roles
+
+```typescript
+enum UserRole {
+  DUENO      // Owner - full access
+  SUPERVISOR // Supervisor - manage operations
+  OPERARIO   // Operator - execute work
+  ADMIN      // Admin - technical access
+}
+```
+
+### Permission Matrix
+
+| Feature | OPERARIO | SUPERVISOR | DUENO | ADMIN |
+|---------|:--------:|:----------:|:-----:|:-----:|
+| View Dashboard | ❌ | ✅ | ✅ | ✅ |
+| Supervisor Panel | ❌ | ✅ | ✅ | ✅ |
+| Execute Work Orders | ✅ | ✅ | ✅ | ✅ |
+| Create/Edit Work Orders | ❌ | ✅ | ✅ | ✅ |
+| Manage Clients | ❌ | ✅ | ✅ | ✅ |
+| Manage Materials | ❌ | ✅ | ✅ | ✅ |
+| Manage Users | ❌ | ❌ | ✅ | ✅ |
+| View Audit Logs | ❌ | ❌ | ✅ | ✅ |
+| System Settings | ❌ | ❌ | ✅ | ✅ |
+
+### Roles Guard
+
+Endpoints are protected with `@Roles()` decorator:
+
+```typescript
+@Roles(UserRole.DUENO, UserRole.ADMIN)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Get('users')
+async listUsers() {
+  // Only DUENO and ADMIN can access
+}
+```
+
+<Warning>
+  Never assign `ADMIN` or `DUENO` roles to regular users. These roles have full system access.
+</Warning>
+
+## CORS Configuration
+
+Cross-Origin Resource Sharing is configured at startup:
+
+```typescript apps/backend/src/main.ts
+const corsOrigin = configService.get('CORS_ORIGIN', 'http://localhost');
+app.enableCors({ origin: corsOrigin, credentials: true });
+```
+
+### Production CORS
+
+<Steps>
+  <Step title="Set Exact Origin">
+    ```bash .env
+    # Correct
+    CORS_ORIGIN=https://mes.yourcompany.com
+
+    # Wrong - too permissive!
+    CORS_ORIGIN=*
+    ```
+  </Step>
+
+  <Step title="Match Frontend URL">
+    Ensure `CORS_ORIGIN` matches the URL users visit in their browser.
+  </Step>
+
+  <Step title="Test">
+    Open browser console and verify no CORS errors.
+  </Step>
+</Steps>
+
+<Warning>
+  Never use `CORS_ORIGIN=*` in production. This allows any website to make requests to your API.
+</Warning>
+
+## Input Validation
+
+All input is validated with class-validator:
+
+```typescript apps/backend/src/main.ts
+app.useGlobalPipes(
+  new ValidationPipe({
+    whitelist: true,           // Strip unknown properties
+    forbidNonWhitelisted: true, // Reject unknown properties
+    transform: true             // Auto-transform types
+  })
+);
+```
+
+### Validation Benefits
+
+<CardGroup cols={2}>
+  <Card title="Type Safety" icon="shield-check">
+    Ensures data types match expectations (string, number, date, etc.)
+  </Card>
+  <Card title="Injection Prevention" icon="ban">
+    Whitelist mode prevents SQL injection and NoSQL injection
+  </Card>
+  <Card title="XSS Protection" icon="code">
+    Strips malicious scripts from user input
+  </Card>
+  <Card title="Business Rules" icon="rules">
+    Validates business constraints (email format, min/max, etc.)
+  </Card>
+</CardGroup>
+
+## Audit Logging
+
+The system tracks all significant actions:
+
+```typescript
+enum AuditEntityType {
+  COMPANY, USER, CLIENT, QUOTATION,
+  WORK_ORDER, RESOURCE, MATERIAL, AUTH
+}
+
+enum AuditActionType {
+  CREATE, UPDATE, DELETE, STATUS_CHANGE,
+  ASSIGN, DELIVERY_CLOSE, PASSWORD_CHANGE,
+  ROLE_CHANGE, SETTINGS_CHANGE, LOGIN
+}
+```
+
+### Audit Log Contents
+
+Each audit entry includes:
+- **Entity type** and **entity ID**
+- **Action type** (create, update, delete, etc.)
+- **User** who performed the action
+- **Timestamp**
+- **Before snapshot** (JSON of old values)
+- **After snapshot** (JSON of new values)
+- **Company ID** (for multi-tenancy)
+
+### Viewing Audit Logs
+
+```bash
+# API endpoint (requires DUENO or ADMIN role)
+GET /api/audit-logs?entityType=USER&action=ROLE_CHANGE&limit=50
+```
+
+<Info>
+  Audit logs are append-only. They cannot be deleted or modified, providing a tamper-proof record.
+</Info>
+
+## Database Security
+
+### Connection Security
+
+<Steps>
+  <Step title="Strong Password">
+    Use a complex password for `POSTGRES_PASSWORD`:
+    ```bash
+    openssl rand -base64 24
+    ```
+  </Step>
+
+  <Step title="Restrict Port Exposure">
+    In production, do NOT expose PostgreSQL port to host:
+    ```yaml docker-compose.yml
+    # Remove this in production:
+    # ports:
+    #   - "${POSTGRES_PORT}:5432"
+    ```
+  </Step>
+
+  <Step title="Database Backups">
+    Automate encrypted backups:
+    ```bash
+    docker compose exec -T drait-db pg_dump -U drait -d drait_mes | \
+      gpg --encrypt --recipient admin@company.com > backup.sql.gpg
+    ```
+  </Step>
+</Steps>
+
+### Multi-Tenancy Isolation
+
+All queries filter by `companyId`:
+
+```typescript
+// Users can only see data from their own company
+const workOrders = await prisma.workOrder.findMany({
+  where: {
+    companyId: user.companyId // Enforced by JwtAuthGuard
+  }
+});
+```
+
+<Note>
+  This prevents data leakage between organizations in a multi-tenant deployment.
+</Note>
+
+## HTTPS/TLS
+
+The Docker setup serves HTTP by default. For production, add TLS:
+
+### Option 1: Reverse Proxy
+
+Use Caddy or Traefik for automatic HTTPS:
+
+```yaml docker-compose.yml
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+```
+
+```Caddyfile
+mes.yourcompany.com {
+  reverse_proxy drait-nginx:80
+}
+```
+
+### Option 2: Let's Encrypt with Certbot
+
+```bash
+# Install certbot
+sudo apt-get install certbot python3-certbot-nginx
+
+# Obtain certificate
+sudo certbot --nginx -d mes.yourcompany.com
+
+# Auto-renewal
+sudo certbot renew --dry-run
+```
+
+### Option 3: Nginx SSL
+
+Modify `infra/nginx/default.conf`:
+
+```nginx
+server {
+  listen 443 ssl http2;
+  server_name mes.yourcompany.com;
+
+  ssl_certificate /etc/nginx/ssl/cert.pem;
+  ssl_certificate_key /etc/nginx/ssl/key.pem;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_ciphers HIGH:!aNULL:!MD5;
+
+  # ... rest of config
+}
+```
+
+<Warning>
+  **HTTPS is mandatory for production.** Without TLS, JWT tokens and passwords are transmitted in plain text.
+</Warning>
+
+## Security Checklist
+
+Before deploying to production:
+
+<Steps>
+  <Step title="Credentials">
+    - [ ] Change `JWT_SECRET` to a strong random value (min 32 chars)
+    - [ ] Change `POSTGRES_PASSWORD` to a complex password
+    - [ ] Change all default user passwords from `ChangeMe123!`
+    - [ ] Store secrets in secure vault (AWS Secrets Manager, HashiCorp Vault, etc.)
+  </Step>
+
+  <Step title="Environment">
+    - [ ] Set `NODE_ENV=production`
+    - [ ] Set `CORS_ORIGIN` to exact frontend URL (not `*`)
+    - [ ] Set `JWT_EXPIRES_IN` to appropriate duration (8h recommended)
+    - [ ] Configure `TZ` to your timezone
+  </Step>
+
+  <Step title="Network">
+    - [ ] Enable HTTPS with valid TLS certificate
+    - [ ] Remove PostgreSQL port exposure from `docker-compose.yml`
+    - [ ] Configure firewall to allow only ports 80 and 443
+    - [ ] Use private network for database connections
+  </Step>
+
+  <Step title="Application">
+    - [ ] Review and adjust rate limiting thresholds
+    - [ ] Implement password complexity requirements
+    - [ ] Enable audit logging for compliance
+    - [ ] Test all role-based access controls
+    - [ ] Verify input validation on all endpoints
+  </Step>
+
+  <Step title="Operations">
+    - [ ] Set up automated database backups
+    - [ ] Configure log aggregation and monitoring
+    - [ ] Implement intrusion detection
+    - [ ] Create incident response plan
+    - [ ] Schedule regular security updates
+  </Step>
+
+  <Step title="Compliance">
+    - [ ] Review data retention policies
+    - [ ] Ensure GDPR/privacy compliance if applicable
+    - [ ] Document security procedures
+    - [ ] Train users on security best practices
+  </Step>
+</Steps>
+
+## Security Updates
+
+Keep dependencies current:
+
+```bash
+# Check for outdated packages
+docker compose exec backend npm outdated
+
+# Update dependencies
+docker compose exec backend npm update
+
+# Rebuild containers
+docker compose up --build -d
+```
+
+<Warning>
+  Subscribe to security advisories:
+  - [NestJS Security](https://github.com/nestjs/nest/security)
+  - [Prisma Security](https://github.com/prisma/prisma/security)
+  - [PostgreSQL Security](https://www.postgresql.org/support/security/)
+</Warning>
+
+## Reporting Security Issues
+
+If you discover a security vulnerability:
+
+1. **Do NOT** open a public issue
+2. Contact the maintainers privately
+3. Provide detailed reproduction steps
+4. Allow time for a patch before disclosure
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Docker Setup" icon="docker" href="/deployment/docker-setup">
+    Deploy the full stack securely
+  </Card>
+  <Card title="Environment Variables" icon="gear" href="/deployment/environment-variables">
+    Configure security settings
+  </Card>
+  <Card title="Database Setup" icon="database" href="/deployment/database-setup">
+    Secure database access
+  </Card>
+</CardGroup>

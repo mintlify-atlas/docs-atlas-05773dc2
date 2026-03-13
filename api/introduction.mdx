@@ -1,0 +1,204 @@
+---
+title: 'API Introduction'
+description: 'Overview of the DRAIT Mini-MES REST API'
+---
+
+## Welcome to DRAIT Mini-MES API
+
+The DRAIT Mini-MES REST API is built with NestJS and provides comprehensive endpoints for managing manufacturing execution system operations including work orders, resources, materials, clients, quotations, and more.
+
+## Base URL
+
+All API requests should be made to:
+
+```
+http://your-domain/api
+```
+
+<Info>
+  The `/api` prefix is automatically configured via `app.setGlobalPrefix('api')` in the NestJS application (main.ts:26).
+</Info>
+
+## API Architecture
+
+### Request/Response Format
+
+The API uses JSON for all request and response bodies. All requests must include:
+
+```http
+Content-Type: application/json
+```
+
+### Global Validation
+
+All endpoints use NestJS ValidationPipe with the following configuration:
+
+- **Whitelist**: Only properties with validation decorators are allowed
+- **ForbidNonWhitelisted**: Requests with extra properties will be rejected
+- **Transform**: Automatic type transformation of payloads
+
+This is configured globally in main.ts:28-34.
+
+## Rate Limiting
+
+<Warning>
+  The API implements global rate limiting to prevent abuse and ensure system stability.
+</Warning>
+
+### Global Limits
+
+All API endpoints (except auth endpoints) are subject to:
+
+```typescript
+{
+  ttl: 60000,  // 60 seconds
+  limit: 20    // 20 requests per minute per IP
+}
+```
+
+Configured in app.module.ts:26.
+
+### Authentication Endpoints
+
+The `/api/auth/login` endpoint has **stricter rate limiting**:
+
+```typescript
+{
+  ttl: 60000,  // 60 seconds
+  limit: 5     // Maximum 5 login attempts per minute per IP
+}
+```
+
+Configured in auth.controller.ts:21.
+
+<Note>
+  Other auth endpoints (`/me`, `/logout`, `/status`) skip the global throttler and have no specific rate limits.
+</Note>
+
+## CORS Configuration
+
+The API supports Cross-Origin Resource Sharing (CORS) with the following configuration:
+
+```typescript
+{
+  origin: process.env.CORS_ORIGIN || 'http://localhost',
+  credentials: true
+}
+```
+
+Configured in main.ts:27.
+
+<Info>
+  Set the `CORS_ORIGIN` environment variable to your frontend domain in production.
+</Info>
+
+## Multi-Tenancy
+
+The DRAIT Mini-MES API is **multi-tenant** by design. All data is isolated by `companyId`:
+
+- Every user belongs to a company
+- JWT tokens contain `companyId` in the payload
+- All queries automatically filter by the authenticated user's company
+- Users can only access data from their own company
+
+This ensures complete data isolation between different companies/workshops using the system.
+
+## Security Features
+
+### JWT Secret Validation
+
+<Warning>
+  The system validates JWT secrets on startup and will **refuse to start** in production with weak secrets.
+</Warning>
+
+Weak secrets that are rejected:
+- `change_this_secret`
+- `secret`
+- `changeme`
+- `jwt_secret`
+
+Configured in main.ts:6-24.
+
+### Password Hashing
+
+All passwords are hashed using **bcrypt** before storage. The API never stores or returns plaintext passwords.
+
+### Active Status Checks
+
+Authentication requires:
+- User account must be active (`isActive: true`)
+- User's company must be active
+
+Inactive users or users from inactive companies cannot authenticate (auth.service.ts:24-35).
+
+## Error Responses
+
+The API uses standard HTTP status codes and returns errors in the following format:
+
+```json
+{
+  "statusCode": 401,
+  "message": "Credenciales invalidas",
+  "error": "Unauthorized"
+}
+```
+
+### Common Status Codes
+
+| Status Code | Meaning |
+|-------------|----------|
+| `200` | Success |
+| `201` | Resource created |
+| `400` | Bad request (validation failed) |
+| `401` | Unauthorized (missing/invalid token) |
+| `403` | Forbidden (insufficient permissions) |
+| `404` | Resource not found |
+| `429` | Too many requests (rate limit exceeded) |
+| `500` | Internal server error |
+
+## API Status Check
+
+You can verify the API is running using the public status endpoint:
+
+```bash
+GET /api/auth/status
+```
+
+**Response:**
+
+```json
+{
+  "module": "auth",
+  "status": "ready"
+}
+```
+
+This endpoint does not require authentication.
+
+## Environment Variables
+
+The following environment variables affect API behavior:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NODE_ENV` | Environment mode | `development` |
+| `BACKEND_PORT` | Port for the API server | `3000` |
+| `JWT_SECRET` | Secret key for signing JWT tokens | (required in production) |
+| `JWT_EXPIRES_IN` | Token expiration time | `8h` |
+| `CORS_ORIGIN` | Allowed CORS origin | `http://localhost` |
+| `DATABASE_URL` | PostgreSQL connection string | (required) |
+
+<Warning>
+  Never use default values for `JWT_SECRET` or `POSTGRES_PASSWORD` in production environments.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="lock" href="/api/authentication">
+    Learn how to authenticate and obtain JWT tokens
+  </Card>
+  <Card title="Work Orders API" icon="list-check" href="/api/work-orders">
+    Explore work order management endpoints
+  </Card>
+</CardGroup>

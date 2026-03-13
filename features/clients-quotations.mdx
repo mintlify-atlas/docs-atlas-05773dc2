@@ -1,0 +1,498 @@
+---
+title: Clients & Quotations
+description: Manage customer directory and commercial quotations
+icon: handshake
+---
+
+# Clients and Quotations
+
+The commercial pipeline in DRAIT Mini-MES starts with client management and quotation creation. This module handles the pre-production sales cycle from initial quote through customer approval.
+
+## Client Management
+
+### Creating Clients
+
+The client directory stores all customer information for quotations and work orders.
+
+<Steps>
+  <Step title="Open Clients page">
+    Navigate to **Commercial** → **Clients** in the main menu.
+  </Step>
+  
+  <Step title="Click '+ Nuevo Cliente'">
+    Opens the client creation modal.
+  </Step>
+  
+  <Step title="Fill client details">
+    **Required:**
+    - **Nombre / Razón Social**: Company or individual name
+    
+    **Optional:**
+    - **Contacto Principal**: Contact person name
+    - **Teléfono**: Phone number
+    - **Email de Facturación**: Billing email
+    - **Dirección Fiscal / Entrega**: Delivery address
+    - **Observaciones Internas**: Internal notes
+  </Step>
+  
+  <Step title="Save">
+    Click "Guardar Ficha" to create the client record.
+  </Step>
+</Steps>
+
+### Client Data Structure
+
+<CardGroup cols={2}>
+  <Card title="Core Fields" icon="database">
+    ```typescript
+    interface Client {
+      id: string;
+      name: string;           // Required
+      contact?: string;       // Contact person
+      phone?: string;         // Phone number
+      email?: string;         // Email address
+      address?: string;       // Physical address
+      notes?: string;         // Internal notes
+      isActive: boolean;      // Active status
+    }
+    ```
+  </Card>
+  
+  <Card title="Relationships" icon="link">
+    Clients are linked to:
+    - **Quotations**: `quotations Quotation[]`
+    - **Work Orders**: `workOrders WorkOrder[]`
+    
+    This enables:
+    - Filtering quotes/orders by customer
+    - Customer history reports
+    - Revenue tracking per client
+  </Card>
+</CardGroup>
+
+### Searching and Filtering
+
+The client list supports real-time search across:
+- Client name
+- Contact person
+- Email address
+
+Type in the search box to filter results dynamically.
+
+### Editing and Deactivation
+
+<Tabs>
+  <Tab title="Edit Client">
+    1. Click "Editar" button on any client row
+    2. Modify fields in the modal
+    3. Click "Guardar Ficha"
+    
+    Changes are applied immediately.
+  </Tab>
+  
+  <Tab title="Deactivate">
+    1. Click "Baja" button
+    2. Confirm deletion in modal
+    3. Client is soft-deleted (`isActive = false`)
+    
+    <Warning>
+      Deactivation is permanent but preserves data. Linked quotations and work orders remain accessible.
+    </Warning>
+  </Tab>
+</Tabs>
+
+---
+
+## Quotation Management
+
+### Quotation Lifecycle
+
+Quotations progress through four states:
+
+<CardGroup cols={4}>
+  <Card title="BORRADOR" icon="pencil">
+    Initial draft state. Editable, not sent to customer.
+  </Card>
+  
+  <Card title="ENVIADO" icon="paper-plane">
+    Sent to customer for review. Awaiting response.
+  </Card>
+  
+  <Card title="APROBADO" icon="check">
+    Customer approved. Ready to convert to work order.
+  </Card>
+  
+  <Card title="RECHAZADO" icon="times">
+    Customer rejected. Can be archived or revised.
+  </Card>
+</CardGroup>
+
+### Creating Quotations
+
+<Steps>
+  <Step title="Navigate to Quotations">
+    Go to **Commercial** → **Quotations**.
+  </Step>
+  
+  <Step title="Click '+ Nueva Cotización'">
+    The system auto-generates the next code (e.g., `Q-2026-045`).
+  </Step>
+  
+  <Step title="Fill identification">
+    - **Código Interno**: Pre-filled, can be modified
+    - **Cliente**: Select from existing clients
+    - **Título Comercial**: Short quote title
+    - **Descripción General**: Detailed work description
+  </Step>
+  
+  <Step title="Enter cost estimates">
+    - **Horas Estimadas (min)**: Total estimated time
+    - **Presupuesto Total ($)**: Total quoted amount
+    - **Fecha Vencimiento**: Optional expiration date
+    - **Estado**: Initial status (default: BORRADOR)
+  </Step>
+  
+  <Step title="Add line items (optional)">
+    Break down the quote into sub-items:
+    - **Item**: Material or service description
+    - **Cant.**: Quantity
+    - **Unid.**: Unit (kg, m, u, etc.)
+    - **Precio**: Unit cost
+    - **Hras**: Hours allocated to this item
+    
+    Click "+ Agregar Sub-Item" to add to list.
+  </Step>
+  
+  <Step title="Save quotation">
+    Click "Guardar Presupuesto" to create the quote.
+  </Step>
+</Steps>
+
+<Info>
+  Quotation codes follow the pattern `Q-{YEAR}-{SEQUENCE}` and are unique within each company.
+</Info>
+
+### Quotation Items
+
+Quotations can contain multiple line items for detailed costing:
+
+```prisma
+model QuotationItem {
+  id                String
+  quotationId       String
+  description       String      // Item description
+  quantity          Decimal     // Quantity
+  unit              String      // Unit of measure
+  estimatedUnitCost Decimal     // Cost per unit
+  estimatedHoursMin Int?        // Hours for this item
+  position          Int         // Display order
+}
+```
+
+Items enable:
+- Granular cost breakdown for client transparency
+- Internal cost analysis by component
+- Reusable item templates for similar quotes
+
+### Managing Quotations
+
+Click "⚙️ Gestionar" on any quotation to access the management panel:
+
+<Tabs>
+  <Tab title="Edit Technical Details">
+    **Abrir Editor** opens the full quotation editor where you can:
+    - Modify description and costs
+    - Add/remove line items
+    - Update estimates
+    - Change validity dates
+    
+    <Note>
+      Technical editing is recommended while in BORRADOR status.
+    </Note>
+  </Tab>
+  
+  <Tab title="Change Commercial Status">
+    Update the quotation lifecycle state:
+    
+    ```typescript
+    // Status transition
+    BORRADOR → ENVIADO → APROBADO/RECHAZADO
+    ```
+    
+    1. Select new status from dropdown
+    2. Click "Fijar Estado"
+    3. Status updates immediately
+    
+    Status changes are audited in `AuditLog` with before/after states.
+  </Tab>
+  
+  <Tab title="Attach Documents">
+    Upload supporting files (PDF, images up to 10MB):
+    
+    - Technical drawings
+    - Client specifications
+    - Reference photos
+    - Signed quotes
+    
+    **Upload process:**
+    1. Click "Seleccionar archivo"
+    2. Choose PDF or image file
+    3. Click "Subir"
+    4. File appears as "📍 Documento Cargado"
+    
+    **View attachment:**
+    Click "Ver Documento" to open in new tab.
+    
+    **Remove attachment:**
+    Click trash icon (🗑️) to delete uploaded file.
+  </Tab>
+  
+  <Tab title="Convert to Work Order">
+    When status is **APROBADO**, convert to production:
+    
+    <Steps>
+      <Step title="Review conversion section">
+        The "🚀 Convertir a Orden de Trabajo" panel appears.
+      </Step>
+      
+      <Step title="Set work order details">
+        - **Código OT**: Auto-suggested code (e.g., `OT-2026-045`)
+        - **Fecha Compromiso**: Optional delivery commitment
+      </Step>
+      
+      <Step title="Confirm conversion">
+        Click "⚡ Confirmar y Enviar a Producción".
+      </Step>
+      
+      <Step title="Work order created">
+        System creates work order with:
+        - All quotation fields copied
+        - Status: PENDIENTE
+        - Link maintained via `quotationId`
+        - Client relationship preserved
+      </Step>
+    </Steps>
+    
+    <Warning>
+      Conversion requires APROBADO status. Button is disabled otherwise.
+    </Warning>
+  </Tab>
+  
+  <Tab title="Delete Quotation">
+    Quotations can only be deleted if:
+    - Status is BORRADOR, ENVIADO, or RECHAZADO
+    - No work orders have been created from it
+    
+    If deletable:
+    1. Click "Eliminar" in management panel
+    2. Confirm in deletion modal
+    3. Quotation is permanently deleted
+    
+    <Warning>
+      Deletion is permanent and cannot be undone. Use RECHAZADO status to preserve history.
+    </Warning>
+  </Tab>
+</Tabs>
+
+### Filtering and Sorting
+
+<CardGroup cols={2}>
+  <Card title="Search" icon="search">
+    Real-time filtering by:
+    - Quotation code
+    - Client name
+    - Quote title
+    
+    Type in search box for instant results.
+  </Card>
+  
+  <Card title="Status Filter" icon="filter">
+    Dropdown filter:
+    - Todos los estados
+    - Borrador
+    - Enviado
+    - Aprobado
+    - Rechazado
+  </Card>
+  
+  <Card title="Sort Columns" icon="sort">
+    Click column headers to sort by:
+    - **Código**: Alphanumeric
+    - **Cliente**: Client name
+    - **Costo Est.**: Estimated cost
+    - **Estado**: Status
+    - **Creado**: Creation date
+    
+    Click again to toggle ascending/descending.
+  </Card>
+  
+  <Card title="Expiration Alerts" icon="exclamation-triangle">
+    Quotations display "⚠️ VENCIDO" if:
+    - `validUntil` date has passed
+    - Status is not APROBADO
+    
+    Helps identify stale quotes needing follow-up.
+  </Card>
+</CardGroup>
+
+### Quotation Data Structure
+
+```prisma
+model Quotation {
+  id                 String
+  companyId          String
+  clientId           String
+  createdByUserId    String?
+  code               String          // e.g., Q-2026-001
+  title              String
+  description        String
+  estimatedTimeMin   Int             // Minutes
+  estimatedCost      Decimal         // Total cost
+  estimatedMaterials String?         // Material summary
+  attachmentUrl      String?         // File path
+  status             QuotationStatus
+  approvedAt         DateTime?
+  validUntil         DateTime?       // Expiration
+  createdAt          DateTime
+  updatedAt          DateTime
+  
+  // Relations
+  client             Client
+  createdByUser      User?
+  items              QuotationItem[]
+  workOrders         WorkOrder[]     // Converted OTs
+}
+```
+
+## Quote-to-Production Workflow
+
+The complete commercial-to-production flow:
+
+<Steps>
+  <Step title="Client Registration">
+    Create client record with contact and billing information.
+  </Step>
+  
+  <Step title="Quotation Creation">
+    Draft quotation with cost estimates and line items.
+  </Step>
+  
+  <Step title="Commercial Review">
+    - Upload technical attachments
+    - Set validity date
+    - Change status to ENVIADO
+  </Step>
+  
+  <Step title="Customer Approval">
+    - Customer reviews and approves
+    - Update status to APROBADO
+    - Record approval date
+  </Step>
+  
+  <Step title="Production Conversion">
+    - Convert APROBADO quotation to work order
+    - System copies all estimates
+    - Work order enters PENDIENTE state
+  </Step>
+  
+  <Step title="Production Planning">
+    Work order is now in production module:
+    - Assign resources
+    - Schedule work
+    - Track actual time and materials
+  </Step>
+</Steps>
+
+<Info>
+  Maintaining the quote-to-work-order link enables variance analysis: comparing estimated costs (from quotation) with actual costs (from work order execution).
+</Info>
+
+## Best Practices
+
+<Card title="Recommendations" icon="lightbulb">
+  **Client Management:**
+  - Keep contact information current for delivery coordination
+  - Use notes field for payment terms or special requirements
+  - Deactivate rather than delete to preserve history
+  
+  **Quotation Workflow:**
+  - Always set validity dates to manage customer expectations
+  - Use line items for complex quotes with multiple materials
+  - Attach technical specifications to reduce miscommunication
+  - Update status promptly to keep pipeline current
+  - Convert to work orders immediately upon approval
+  
+  **Code Conventions:**
+  - Maintain sequential numbering for easy reference
+  - Use year prefix for annual reset (Q-2026-xxx)
+  - Match quotation and work order codes for traceability
+</Card>
+
+## API Endpoints
+
+<Tabs>
+  <Tab title="Clients">
+    ```typescript
+    // List clients (with search)
+    GET /api/clients?search={query}
+    Response: { items: Client[] }
+    
+    // Get single client
+    GET /api/clients/:id
+    
+    // Create client
+    POST /api/clients
+    Body: { name, contact?, phone?, email?, address?, notes? }
+    
+    // Update client
+    PATCH /api/clients/:id
+    Body: { name?, contact?, ... }
+    
+    // Deactivate client (soft delete)
+    DELETE /api/clients/:id
+    ```
+  </Tab>
+  
+  <Tab title="Quotations">
+    ```typescript
+    // List quotations
+    GET /api/quotations
+    Response: Quotation[]
+    
+    // Get single quotation
+    GET /api/quotations/:id
+    
+    // Create quotation
+    POST /api/quotations
+    Body: {
+      clientId, code, title, description,
+      estimatedTimeMin, estimatedCost,
+      status, validUntil?,
+      items: [{ description, quantity, unit, estimatedUnitCost, estimatedHoursMin? }]
+    }
+    
+    // Update quotation
+    PATCH /api/quotations/:id
+    Body: { title?, description?, items?, ... }
+    
+    // Change status
+    PATCH /api/quotations/:id/status
+    Body: { status: 'BORRADOR' | 'ENVIADO' | 'APROBADO' | 'RECHAZADO' }
+    
+    // Delete quotation (restricted)
+    DELETE /api/quotations/:id
+    ```
+  </Tab>
+  
+  <Tab title="Attachments">
+    ```typescript
+    // Upload attachment
+    POST /api/quotations/:id/attachment
+    Content-Type: multipart/form-data
+    Max size: 10MB
+    
+    // Delete attachment
+    DELETE /api/quotations/:id/attachment
+    ```
+  </Tab>
+</Tabs>

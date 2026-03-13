@@ -1,0 +1,437 @@
+---
+title: Docker Deployment
+description: Complete guide to deploying DRAIT Mini-MES with Docker Compose
+---
+
+## Overview
+
+DRAIT Mini-MES uses Docker Compose to orchestrate a multi-container deployment with PostgreSQL, NestJS backend, React frontend, and Nginx reverse proxy.
+
+## Architecture
+
+```
+Browser → Nginx :80 → [/api/*] → Backend NestJS :3000 → PostgreSQL :5432
+                    → [/*]    → Frontend React (static)
+```
+
+## Docker Services
+
+The `docker-compose.yml` defines four services:
+
+<CardGroup cols={2}>
+  <Card title="drait-db" icon="database">
+    PostgreSQL 16 Alpine with health checks and persistent volume
+  </Card>
+  <Card title="drait-backend" icon="server">
+    NestJS API with Prisma ORM, depends on database health
+  </Card>
+  <Card title="drait-frontend" icon="browser">
+    React SPA served as static files
+  </Card>
+  <Card title="drait-nginx" icon="globe">
+    Reverse proxy routing traffic to backend and frontend
+  </Card>
+</CardGroup>
+
+## Service Details
+
+### Database Service
+
+```yaml docker-compose.yml
+services:
+  drait-db:
+    image: postgres:16-alpine
+    container_name: drait-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+```
+
+<Info>
+  The database uses a named volume `postgres_data` for persistence. Data survives container restarts.
+</Info>
+
+### Backend Service
+
+```yaml docker-compose.yml
+services:
+  drait-backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: drait-backend
+    restart: unless-stopped
+    depends_on:
+      drait-db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV}
+      TZ: ${TZ}
+      BACKEND_PORT: ${BACKEND_PORT}
+      DATABASE_URL: ${DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000/api/auth/status', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+```
+
+<Note>
+  The backend waits for the database to be healthy before starting. The health check verifies the `/api/auth/status` endpoint.
+</Note>
+
+### Backend Dockerfile
+
+The backend uses a multi-stage build for optimization:
+
+```dockerfile apps/backend/Dockerfile
+FROM node:20-slim AS base
+WORKDIR /app
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
+FROM base AS deps
+COPY package*.json ./
+RUN npm install --legacy-peer-deps
+
+FROM deps AS builder
+COPY tsconfig*.json nest-cli.json ./
+COPY prisma ./prisma
+COPY src ./src
+RUN npm run prisma:generate
+RUN npm run build
+
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+COPY package*.json ./
+EXPOSE 3000
+CMD ["node", "dist/src/main.js"]
+```
+
+### Frontend Service
+
+```yaml docker-compose.yml
+services:
+  drait-frontend:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    container_name: drait-frontend
+    restart: unless-stopped
+```
+
+### Frontend Dockerfile
+
+The frontend builds static assets and serves them with Nginx:
+
+```dockerfile apps/frontend/Dockerfile
+FROM node:20-alpine AS builder
+WORKDIR /app
+ARG VITE_API_BASE_URL=/api
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+COPY package*.json ./
+RUN npm install
+COPY tsconfig*.json vite.config.ts ./
+COPY index.html ./
+COPY public ./public
+COPY src ./src
+RUN npm run build
+
+FROM nginx:1.27-alpine
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+```
+
+### Nginx Service
+
+```yaml docker-compose.yml
+services:
+  drait-nginx:
+    image: nginx:1.27-alpine
+    container_name: drait-nginx
+    restart: unless-stopped
+    depends_on:
+      drait-backend:
+        condition: service_started
+      drait-frontend:
+        condition: service_started
+    ports:
+      - "${HTTP_PORT}:80"
+    volumes:
+      - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+```
+
+The Nginx configuration routes traffic:
+
+```nginx infra/nginx/default.conf
+server {
+  listen 80;
+  server_name _;
+
+  client_max_body_size 10m;
+
+  location /api/ {
+    proxy_pass http://drait-backend:3000/api/;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location / {
+    proxy_pass http://drait-frontend:80;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+}
+```
+
+## Deployment Steps
+
+<Steps>
+  <Step title="Clone Repository">
+    ```bash
+    git clone <repository-url>
+    cd Drait-mini-MES
+    ```
+  </Step>
+
+  <Step title="Configure Environment">
+    Copy the example environment file and configure your values:
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    See [Environment Variables](/deployment/environment-variables) for configuration details.
+  </Step>
+
+  <Step title="Build and Start Services">
+    ```bash
+    docker compose up --build -d
+    ```
+
+    This command:
+    - Builds the backend and frontend images
+    - Starts all services in detached mode
+    - Creates the database volume
+    - Configures networking between containers
+  </Step>
+
+  <Step title="Run Database Migrations">
+    ```bash
+    docker compose exec backend npm run prisma:migrate
+    ```
+
+    See [Database Setup](/deployment/database-setup) for details.
+  </Step>
+
+  <Step title="Seed Initial Data (Optional)">
+    ```bash
+    docker compose exec backend npm run prisma:seed
+    ```
+
+    This creates demo data including users, clients, and work orders.
+  </Step>
+
+  <Step title="Verify Deployment">
+    Access the application at `http://localhost` (or your configured `HTTP_PORT`).
+
+    Check service health:
+    ```bash
+    docker compose ps
+    docker compose logs -f
+    ```
+  </Step>
+</Steps>
+
+## Common Commands
+
+### View Logs
+
+```bash
+# All services
+docker compose logs -f
+
+# Specific service
+docker compose logs -f backend
+docker compose logs -f drait-db
+```
+
+### Restart Services
+
+```bash
+# All services
+docker compose restart
+
+# Specific service
+docker compose restart backend
+```
+
+### Stop Services
+
+```bash
+# Stop without removing containers
+docker compose stop
+
+# Stop and remove containers
+docker compose down
+
+# Stop and remove volumes (deletes data!)
+docker compose down -v
+```
+
+### Update Application
+
+```bash
+# Pull latest code
+git pull origin main
+
+# Rebuild and restart
+docker compose up --build -d
+
+# Run migrations if needed
+docker compose exec backend npm run prisma:migrate
+```
+
+### Access Backend Shell
+
+```bash
+docker compose exec backend sh
+```
+
+### Access Database
+
+```bash
+# Using docker exec
+docker compose exec drait-db psql -U drait -d drait_mes
+
+# From host (if POSTGRES_PORT is exposed)
+psql -h localhost -U drait -d drait_mes
+```
+
+## Health Checks
+
+The deployment includes health checks for reliability:
+
+<CardGroup cols={2}>
+  <Card title="Database" icon="database">
+    `pg_isready` checks PostgreSQL availability every 10 seconds
+  </Card>
+  <Card title="Backend" icon="server">
+    HTTP request to `/api/auth/status` every 15 seconds with 30s startup grace period
+  </Card>
+</CardGroup>
+
+## Volumes
+
+Persistent data is stored in Docker volumes:
+
+```yaml
+volumes:
+  postgres_data:
+```
+
+<Warning>
+  The `postgres_data` volume contains your database. Back it up regularly and never delete it in production unless you intend to lose all data.
+</Warning>
+
+## Port Mapping
+
+| Service | Internal Port | External Port | Configurable |
+|---------|--------------|---------------|-------------|
+| Nginx | 80 | `${HTTP_PORT}` (default: 80) | Yes |
+| Backend | 3000 | Not exposed | No |
+| Frontend | 80 | Not exposed | No |
+| PostgreSQL | 5432 | `${POSTGRES_PORT}` (default: 5432) | Yes |
+
+<Info>
+  Only Nginx is exposed to the host. Backend and frontend communicate through Docker's internal network.
+</Info>
+
+## Networking
+
+Docker Compose automatically creates a bridge network for inter-container communication:
+
+- Services reference each other by container name (e.g., `drait-backend`, `drait-db`)
+- Nginx proxies to `http://drait-backend:3000` and `http://drait-frontend:80`
+- Backend connects to database using `db:5432` in `DATABASE_URL`
+
+## Troubleshooting
+
+### Backend Won't Start
+
+```bash
+# Check database health
+docker compose ps drait-db
+
+# View backend logs
+docker compose logs backend
+
+# Common issues:
+# - DATABASE_URL incorrect
+# - JWT_SECRET validation failure in production
+# - Database not ready (wait for health check)
+```
+
+### Frontend Build Fails
+
+```bash
+# Check build args
+docker compose config | grep VITE_API_BASE_URL
+
+# Rebuild with verbose output
+docker compose build --no-cache frontend
+```
+
+### Database Connection Issues
+
+```bash
+# Verify database is running
+docker compose exec drait-db pg_isready -U ${POSTGRES_USER}
+
+# Check DATABASE_URL format
+echo $DATABASE_URL
+# Should be: postgresql://user:password@drait-db:5432/database
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Environment Variables" icon="gear" href="/deployment/environment-variables">
+    Configure all required environment variables
+  </Card>
+  <Card title="Database Setup" icon="database" href="/deployment/database-setup">
+    Run migrations and seed data
+  </Card>
+  <Card title="Security" icon="shield" href="/deployment/security">
+    Secure your production deployment
+  </Card>
+</CardGroup>

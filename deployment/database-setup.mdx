@@ -1,0 +1,484 @@
+---
+title: Database Setup
+description: Configure PostgreSQL, run Prisma migrations, and seed initial data
+---
+
+## Overview
+
+DRAIT Mini-MES uses PostgreSQL 16 as its database and Prisma as the ORM. This guide covers database initialization, migrations, and seeding.
+
+## Database Architecture
+
+<CardGroup cols={2}>
+  <Card title="ORM" icon="gem">
+    Prisma 5 with TypeScript-first schema definition
+  </Card>
+  <Card title="Database" icon="database">
+    PostgreSQL 16 Alpine with persistent volume storage
+  </Card>
+  <Card title="Migrations" icon="code-branch">
+    Schema versioning with Prisma Migrate
+  </Card>
+  <Card title="Multi-tenancy" icon="building">
+    All data isolated by `companyId` for multiple organizations
+  </Card>
+</CardGroup>
+
+## Prisma Schema
+
+The database schema is defined in `apps/backend/prisma/schema.prisma`:
+
+```prisma schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+```
+
+### Key Enums
+
+```prisma
+enum UserRole {
+  DUENO      // Owner with full access
+  SUPERVISOR // Supervises operations
+  OPERARIO   // Shop floor operator
+  ADMIN      // Technical administrator
+}
+
+enum WorkOrderStatus {
+  PENDIENTE     // Pending
+  PLANIFICADA   // Planned
+  EN_PROCESO    // In progress
+  PAUSADA       // Paused
+  FINALIZADA    // Finished
+  ENTREGADA     // Delivered
+  CANCELADA     // Cancelled
+  RETRABAJO     // Rework
+}
+
+enum ResourceType {
+  HUMANO   // Human resource
+  MAQUINA  // Machine/equipment
+}
+
+enum OperationEventType {
+  OT_CREADA         // Work order created
+  ASIGNADO          // Resource assigned
+  INICIO            // Start
+  PAUSA             // Pause
+  REANUDACION       // Resume
+  FINALIZACION      // Completion
+  CAMBIO_ESTADO     // Status change
+  MATERIAL_CONSUMIDO // Material consumed
+  NOTA              // Note
+}
+```
+
+### Core Models
+
+| Model | Description |
+|-------|-------------|
+| `Company` | Tenant organization. All data is isolated by `companyId` |
+| `User` | System users with roles (OPERARIO, SUPERVISOR, DUENO, ADMIN) |
+| `Client` | Customer organizations |
+| `Quotation` | Sales quotations that generate work orders |
+| `WorkOrder` | Core entity - manufacturing orders |
+| `Resource` | Human and machine resources |
+| `Material` | Inventory items with stock tracking |
+| `WorkOrderEvent` | Timestamped events (START, PAUSE, RESUME, FINISH) |
+| `MaterialConsumption` | Material usage per work order |
+| `OperationLog` | Operational audit trail |
+| `AuditLog` | System-wide audit log with before/after snapshots |
+
+## Initial Setup
+
+<Steps>
+  <Step title="Start Database Container">
+    The database container must be running before migrations:
+
+    ```bash
+    docker compose up -d drait-db
+    ```
+
+    Wait for the health check to pass:
+    ```bash
+    docker compose ps drait-db
+    ```
+
+    Status should show `healthy`.
+  </Step>
+
+  <Step title="Generate Prisma Client">
+    Generate the TypeScript client from the schema:
+
+    ```bash
+    docker compose exec backend npm run prisma:generate
+    ```
+
+    This creates type-safe database access code in `node_modules/@prisma/client`.
+  </Step>
+
+  <Step title="Run Migrations">
+    Apply the database schema:
+
+    ```bash
+    docker compose exec backend npm run prisma:migrate
+    ```
+
+    <Info>
+      This command runs two operations:
+      1. Normalizes enum names (see Enum Normalization below)
+      2. Pushes schema to database with `prisma db push`
+    </Info>
+  </Step>
+
+  <Step title="Verify Schema">
+    Check that tables were created:
+
+    ```bash
+    docker compose exec drait-db psql -U drait -d drait_mes -c "\dt"
+    ```
+
+    You should see tables like `Company`, `User`, `WorkOrder`, etc.
+  </Step>
+</Steps>
+
+## Migration Commands
+
+The `package.json` defines Prisma scripts:
+
+```json apps/backend/package.json
+{
+  "scripts": {
+    "prisma:generate": "prisma generate",
+    "prisma:normalize-enums": "prisma db execute --file prisma/enum-rename.sql --schema prisma/schema.prisma",
+    "prisma:migrate": "npm run prisma:normalize-enums && prisma db push",
+    "prisma:seed": "node dist/prisma/seed.js"
+  },
+  "prisma": {
+    "seed": "node dist/prisma/seed.js"
+  }
+}
+```
+
+### Generate Client
+
+```bash
+docker compose exec backend npm run prisma:generate
+```
+
+Generates TypeScript types and client code. Run this after:
+- Cloning the repository
+- Changing the schema
+- Installing dependencies
+
+### Normalize Enums
+
+```bash
+docker compose exec backend npm run prisma:normalize-enums
+```
+
+Executes `prisma/enum-rename.sql` to normalize PostgreSQL enum names. This ensures enum values match the Prisma schema exactly.
+
+<Note>
+  This step is automatically included in `prisma:migrate`.
+</Note>
+
+### Push Schema Changes
+
+```bash
+docker compose exec backend npm run prisma:migrate
+```
+
+Pushes the schema to the database without creating migration files. This:
+1. Normalizes enums
+2. Creates/updates tables
+3. Applies schema changes
+
+<Warning>
+  `prisma db push` is used instead of `prisma migrate dev` because the project uses custom enum normalization. In production, this approach is suitable for small teams with direct database access.
+</Warning>
+
+### Seed Database
+
+```bash
+docker compose exec backend npm run prisma:seed
+```
+
+Loads demo data from `apps/backend/prisma/seed.ts`. See [Seeding Data](#seeding-data) below.
+
+## Seeding Data
+
+The seed script creates a complete demo environment:
+
+### Demo Users
+
+```typescript seed.ts
+const passwordHash = await bcrypt.hash('ChangeMe123!', 10);
+const users = [
+  { email: 'owner@drait.local',      fullName: 'Roberto Drait',    role: UserRole.DUENO },
+  { email: 'supervisor@drait.local', fullName: 'Marina Ferreyra',  role: UserRole.SUPERVISOR },
+  { email: 'lucas@drait.local',      fullName: 'Lucas Tornero',    role: UserRole.OPERARIO },
+  { email: 'diego@drait.local',      fullName: 'Diego Fresador',   role: UserRole.OPERARIO },
+  { email: 'nicolas@drait.local',    fullName: 'Nicolas Soldador', role: UserRole.OPERARIO },
+];
+```
+
+<Info>
+  **Default password for all demo users:** `ChangeMe123!`
+
+  Change these passwords immediately after first login in production.
+</Info>
+
+### Demo Data Includes
+
+<CardGroup cols={2}>
+  <Card title="1 Company" icon="building">
+    Taller Metalúrgico DRAIT with configuration
+  </Card>
+  <Card title="7 Users" icon="users">
+    1 owner, 1 supervisor, 5 operators
+  </Card>
+  <Card title="6 Clients" icon="handshake">
+    Customer organizations with contact info
+  </Card>
+  <Card title="15 Quotations" icon="file-invoice">
+    Mix of approved, sent, draft, and rejected quotes
+  </Card>
+  <Card title="30 Work Orders" icon="clipboard-check">
+    6 months of work orders in various states
+  </Card>
+  <Card title="10 Resources" icon="industry">
+    5 human resources, 5 machines
+  </Card>
+  <Card title="15 Materials" icon="box">
+    Steel, electrodes, bolts, paint, etc. with stock
+  </Card>
+  <Card title="43 Material Consumptions" icon="chart-line">
+    Realistic material usage across work orders
+  </Card>
+</CardGroup>
+
+### Seed Data Timeline
+
+The seed creates 6 months of historical data:
+
+- **September 2025:** Completed and delivered orders
+- **October-November 2025:** Mix of completed and delivered
+- **December 2025:** Some delayed orders
+- **January-February 2026:** Active orders with time deviations
+- **March 2026 (current):** In-progress, paused, and planned orders
+
+### Running the Seed
+
+<Steps>
+  <Step title="Build Backend">
+    The seed script must be compiled first:
+
+    ```bash
+    docker compose exec backend npm run build
+    ```
+  </Step>
+
+  <Step title="Run Seed Command">
+    ```bash
+    docker compose exec backend npm run prisma:seed
+    ```
+
+    Output:
+    ```
+    ✅ Seed completado — 6 meses de datos para taller metalúrgico DRAIT
+    👤 Admin: owner@drait.local / ChangeMe123!
+    👤 Supervisor: supervisor@drait.local / ChangeMe123!
+    👤 Operario: lucas@drait.local / ChangeMe123!
+    ```
+  </Step>
+
+  <Step title="Verify Data">
+    Login with demo credentials:
+    - **Owner:** `owner@drait.local` / `ChangeMe123!`
+    - **Supervisor:** `supervisor@drait.local` / `ChangeMe123!`
+    - **Operator:** `lucas@drait.local` / `ChangeMe123!`
+  </Step>
+</Steps>
+
+<Warning>
+  The seed script uses `upsert` operations, so it's safe to run multiple times. However, it will reset demo data to initial values.
+</Warning>
+
+## Database Backup
+
+### Create Backup
+
+```bash
+# Backup to file
+docker compose exec drait-db pg_dump -U drait -d drait_mes > backup-$(date +%Y%m%d-%H%M%S).sql
+
+# Backup with compression
+docker compose exec drait-db pg_dump -U drait -d drait_mes | gzip > backup-$(date +%Y%m%d-%H%M%S).sql.gz
+```
+
+### Restore Backup
+
+```bash
+# From SQL file
+cat backup-20260313-120000.sql | docker compose exec -T drait-db psql -U drait -d drait_mes
+
+# From compressed file
+gunzip -c backup-20260313-120000.sql.gz | docker compose exec -T drait-db psql -U drait -d drait_mes
+```
+
+<Warning>
+  Stop the backend before restoring to prevent connection errors:
+  ```bash
+  docker compose stop backend
+  # restore database
+  docker compose start backend
+  ```
+</Warning>
+
+### Automated Backup Script
+
+```bash backup.sh
+#!/bin/bash
+BACKUP_DIR="/path/to/backups"
+DATE=$(date +%Y%m%d-%H%M%S)
+FILE="$BACKUP_DIR/drait-mes-$DATE.sql.gz"
+
+mkdir -p $BACKUP_DIR
+docker compose exec -T drait-db pg_dump -U drait -d drait_mes | gzip > $FILE
+
+echo "Backup saved: $FILE"
+
+# Keep only last 7 days
+find $BACKUP_DIR -name "drait-mes-*.sql.gz" -mtime +7 -delete
+```
+
+Add to crontab for daily backups:
+```bash
+0 2 * * * /path/to/backup.sh
+```
+
+## Database Maintenance
+
+### Access Database Shell
+
+```bash
+docker compose exec drait-db psql -U drait -d drait_mes
+```
+
+### Common Queries
+
+```sql
+-- List all tables
+\dt
+
+-- Describe a table
+\d "WorkOrder"
+
+-- Count work orders by status
+SELECT status, COUNT(*) FROM "WorkOrder" GROUP BY status;
+
+-- List all companies
+SELECT id, name, "legalName" FROM "Company";
+
+-- Check database size
+SELECT pg_size_pretty(pg_database_size('drait_mes'));
+```
+
+### Reset Database
+
+<Warning>
+  This deletes ALL data permanently!
+</Warning>
+
+```bash
+# Stop backend
+docker compose stop backend
+
+# Drop and recreate database
+docker compose exec drait-db psql -U drait -c "DROP DATABASE drait_mes;"
+docker compose exec drait-db psql -U drait -c "CREATE DATABASE drait_mes;"
+
+# Run migrations
+docker compose exec backend npm run prisma:migrate
+
+# Seed data
+docker compose exec backend npm run prisma:seed
+
+# Start backend
+docker compose start backend
+```
+
+## Prisma Studio
+
+Prisma Studio provides a web UI for viewing and editing data:
+
+```bash
+# Run inside backend container
+docker compose exec backend npx prisma studio
+```
+
+Access at `http://localhost:5555`
+
+<Note>
+  Prisma Studio is for development only. Do not expose it in production.
+</Note>
+
+## Troubleshooting
+
+### Migration Fails
+
+**Error:** `Can't reach database server`
+
+**Solution:** Verify database is running and `DATABASE_URL` is correct:
+```bash
+docker compose ps drait-db
+echo $DATABASE_URL
+```
+
+### Enum Type Errors
+
+**Error:** `Invalid enum value`
+
+**Solution:** Run enum normalization:
+```bash
+docker compose exec backend npm run prisma:normalize-enums
+```
+
+### Seed Script Fails
+
+**Error:** `Cannot find module 'dist/prisma/seed.js'`
+
+**Solution:** Build the backend first:
+```bash
+docker compose exec backend npm run build
+docker compose exec backend npm run prisma:seed
+```
+
+### Connection Pool Exhausted
+
+**Error:** `Error: Connection pool timeout`
+
+**Solution:** Restart backend to reset connection pool:
+```bash
+docker compose restart backend
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Docker Setup" icon="docker" href="/deployment/docker-setup">
+    Complete Docker deployment guide
+  </Card>
+  <Card title="Environment Variables" icon="gear" href="/deployment/environment-variables">
+    Configure database connection settings
+  </Card>
+  <Card title="Security" icon="shield" href="/deployment/security">
+    Secure your database in production
+  </Card>
+</CardGroup>

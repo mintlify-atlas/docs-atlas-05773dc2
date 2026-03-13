@@ -1,0 +1,124 @@
+---
+title: Introduction
+description: Welcome to DRAIT Mini-MES - A comprehensive Manufacturing Execution System for metalworking and welding workshops
+---
+
+# Welcome to DRAIT Mini-MES
+
+DRAIT Mini-MES is a web-based Manufacturing Execution System designed specifically for metalworking and welding workshops. It provides complete traceability from quotation to delivery with real-time production management and reporting.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get up and running with DRAIT in minutes
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/architecture">
+    Understand the system architecture
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/introduction">
+    Explore the REST API documentation
+  </Card>
+  <Card title="User Guides" icon="book-open" href="/guides/owner-manual">
+    Learn how to use DRAIT effectively
+  </Card>
+</CardGroup>
+
+## What is DRAIT Mini-MES?
+
+DRAIT Mini-MES is a full-stack production management system that helps workshop owners, supervisors, and operators manage their entire workflow:
+
+- **Client & Quotation Management** - Create and track quotations from inquiry to approval
+- **Work Order Management** - Convert approved quotations to work orders and track them through production
+- **Resource Planning** - Manage personnel and equipment assignments
+- **Material Tracking** - Monitor inventory with real-time consumption tracking
+- **Reporting & Analytics** - Dashboard with KPIs, productivity metrics, and visual charts
+- **Audit Trail** - Complete traceability of all operations for compliance
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Role-Based Access" icon="users" href="/features/audit-traceability">
+    Four user levels: Owner, Supervisor, Operator, and Admin with granular permissions
+  </Card>
+  <Card title="Work Order Lifecycle" icon="list-check" href="/features/work-orders">
+    Complete lifecycle from creation through planning, execution, and delivery
+  </Card>
+  <Card title="Real-Time Tracking" icon="chart-line" href="/features/resources-materials">
+    Track resources, materials, and production status in real-time
+  </Card>
+  <Card title="Multi-Tenant" icon="building" href="/architecture">
+    Company isolation with secure multi-tenant architecture
+  </Card>
+</CardGroup>
+
+## Technology Stack
+
+DRAIT Mini-MES is built with modern, production-ready technologies:
+
+| Component | Technology |
+|-----------|-----------|
+| **Frontend** | React 18 + TypeScript + Vite |
+| **State Management** | TanStack Query (React Query) v5 |
+| **Backend** | NestJS 10 + TypeScript |
+| **Database** | PostgreSQL 16 |
+| **ORM** | Prisma 5 |
+| **Authentication** | JWT + bcrypt |
+| **Charts** | Recharts 2 |
+| **Infrastructure** | Docker + Docker Compose + Nginx |
+
+## System Requirements
+
+<Note>
+DRAIT Mini-MES is designed for on-premise deployment using Docker, making it easy to run on your own infrastructure.
+</Note>
+
+### Minimum Requirements
+
+- **Operating System**: Linux, Windows, or macOS with Docker support
+- **Docker**: Version 20.10 or higher
+- **Docker Compose**: Version 2.0 or higher
+- **Memory**: 4GB RAM minimum (8GB recommended)
+- **Storage**: 10GB available disk space
+
+### Network Requirements
+
+- Port 80 for HTTP access (configurable)
+- Port 5432 for PostgreSQL (internal, not exposed by default)
+
+## Who Should Use DRAIT?
+
+DRAIT Mini-MES is designed for:
+
+- **Small to medium metalworking workshops** looking to digitize their operations
+- **Welding and fabrication shops** needing production traceability
+- **Workshop owners** who want better visibility into operations and costs
+- **Production supervisors** managing work assignments and tracking progress
+- **Operators** executing work orders and logging materials
+
+## Next Steps
+
+Ready to get started? Choose your path:
+
+<CardGroup cols={2}>
+  <Card title="Deploy DRAIT" icon="rocket" href="/quickstart">
+    Follow the quickstart guide to deploy your first instance
+  </Card>
+  <Card title="Explore Features" icon="star" href="/features/work-orders">
+    Learn about all the features DRAIT offers
+  </Card>
+  <Card title="User Training" icon="graduation-cap" href="/guides/owner-manual">
+    Read role-specific user manuals
+  </Card>
+  <Card title="API Integration" icon="plug" href="/api/introduction">
+    Integrate DRAIT with other systems
+  </Card>
+</CardGroup>
+
+## Support & Community
+
+- **GitHub Repository**: [d-roldan/DRAIT--JyM](https://github.com/d-roldan/DRAIT--JyM)
+- **Issues & Bugs**: Report issues on GitHub
+- **Documentation**: You're reading it!
+
+<Info>
+DRAIT Mini-MES is actively developed and maintained. Check the GitHub repository for the latest updates and releases.
+</Info>

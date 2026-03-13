@@ -1,0 +1,413 @@
+---
+title: 'Materials'
+description: 'Inventory and material management endpoints'
+icon: 'boxes-stacked'
+---
+
+## Overview
+
+Material endpoints manage inventory, stock levels, and material movements. Materials can be consumed by work orders and tracked for cost accounting.
+
+---
+
+## GET /api/materials
+
+Retrieve all materials with optional search.
+
+**Authentication**: Required (JWT)
+
+**Roles**: All authenticated users
+
+### Query Parameters
+
+<ParamField query="search" type="string">
+  Search by material name or category
+</ParamField>
+
+### Response
+
+Returns an array of material objects.
+
+<ResponseField name="id" type="string">
+  Material unique identifier
+</ResponseField>
+
+<ResponseField name="companyId" type="string">
+  Associated company ID
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  Material name
+</ResponseField>
+
+<ResponseField name="category" type="string">
+  Material category
+</ResponseField>
+
+<ResponseField name="unit" type="string">
+  Unit of measurement (e.g., "kg", "m", "pcs")
+</ResponseField>
+
+<ResponseField name="unitCost" type="number">
+  Cost per unit (decimal)
+</ResponseField>
+
+<ResponseField name="stock" type="number">
+  Current stock quantity (decimal)
+</ResponseField>
+
+<ResponseField name="isActive" type="boolean">
+  Whether the material is active
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 timestamp of creation
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string">
+  ISO 8601 timestamp of last update
+</ResponseField>
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.example.com/api/materials?search=steel" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://api.example.com/api/materials?search=steel',
+  {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  }
+);
+
+const materials = await response.json();
+```
+</CodeGroup>
+
+---
+
+## POST /api/materials
+
+Create a new material.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Request Body
+
+<ParamField body="name" type="string" required>
+  Material name (max 120 characters)
+</ParamField>
+
+<ParamField body="category" type="string">
+  Material category (max 80 characters)
+</ParamField>
+
+<ParamField body="unit" type="string" required>
+  Unit of measurement (max 30 characters, e.g., "kg", "m", "pcs")
+</ParamField>
+
+<ParamField body="unitCost" type="number" required>
+  Cost per unit (minimum 0)
+</ParamField>
+
+<ParamField body="stock" type="number" required>
+  Initial stock quantity (minimum 0)
+</ParamField>
+
+### Response
+
+Returns the created material object.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.example.com/api/materials \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Electrodo E6013 3.2mm",
+    "category": "Consumibles de Soldadura",
+    "unit": "kg",
+    "unitCost": 12.50,
+    "stock": 100.0
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.example.com/api/materials', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    name: 'Electrodo E6013 3.2mm',
+    category: 'Consumibles de Soldadura',
+    unit: 'kg',
+    unitCost: 12.50,
+    stock: 100.0
+  })
+});
+
+const material = await response.json();
+```
+</CodeGroup>
+
+---
+
+## PATCH /api/materials/:id
+
+Update an existing material.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Material ID to update
+</ParamField>
+
+### Request Body
+
+All fields are optional. Only include fields to update.
+
+<ParamField body="name" type="string">
+  Material name (max 120 characters)
+</ParamField>
+
+<ParamField body="category" type="string">
+  Material category (max 80 characters)
+</ParamField>
+
+<ParamField body="unit" type="string">
+  Unit of measurement (max 30 characters)
+</ParamField>
+
+<ParamField body="unitCost" type="number">
+  Cost per unit (minimum 0)
+</ParamField>
+
+### Response
+
+Returns the updated material object.
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH https://api.example.com/api/materials/clx1234567890 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "unitCost": 13.00,
+    "category": "Soldadura"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  `https://api.example.com/api/materials/${materialId}`,
+  {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      unitCost: 13.00
+    })
+  }
+);
+
+const material = await response.json();
+```
+</CodeGroup>
+
+<Note>
+  Updating `unitCost` does not affect historical consumption records, which preserve the cost snapshot at the time of consumption.
+</Note>
+
+---
+
+## POST /api/materials/:id/adjust-stock
+
+Adjust material stock level (for receiving inventory or manual adjustments).
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Material ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="quantity" type="number" required>
+  Quantity to add (positive) or remove (negative)
+</ParamField>
+
+<ParamField body="unitCost" type="number" required>
+  Unit cost for this movement (minimum 0)
+</ParamField>
+
+<ParamField body="note" type="string">
+  Optional note explaining the adjustment
+</ParamField>
+
+### Response
+
+Returns the updated material object with new stock level.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.example.com/api/materials/clx1234567890/adjust-stock \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "quantity": 50.0,
+    "unitCost": 12.50,
+    "note": "Recepción de proveedor - orden #12345"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  `https://api.example.com/api/materials/${materialId}/adjust-stock`,
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      quantity: 50.0,
+      unitCost: 12.50,
+      note: 'Recepción de proveedor - orden #12345'
+    })
+  }
+);
+
+const material = await response.json();
+```
+</CodeGroup>
+
+<Tabs>
+  <Tab title="Receiving Inventory">
+    Use a **positive quantity** to add stock:
+    
+    ```json
+    {
+      "quantity": 100.0,
+      "unitCost": 12.50,
+      "note": "Purchase order #123"
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Manual Adjustment">
+    Use a **negative quantity** to reduce stock (e.g., for damaged goods):
+    
+    ```json
+    {
+      "quantity": -5.0,
+      "unitCost": 12.50,
+      "note": "Damaged materials - discarded"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  Stock adjustments create a `MaterialMovement` record for audit purposes. The movement type is automatically set to `ENTRADA` for positive quantities and `AJUSTE` for negative quantities.
+</Note>
+
+---
+
+## DELETE /api/materials/:id
+
+Delete a material (soft delete - sets isActive to false).
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Material ID to delete
+</ParamField>
+
+### Response
+
+Returns the deactivated material object.
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE https://api.example.com/api/materials/clx1234567890 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  `https://api.example.com/api/materials/${materialId}`,
+  {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  }
+);
+
+const result = await response.json();
+```
+</CodeGroup>
+
+<Warning>
+  This is a soft delete operation. The material record remains in the database with `isActive` set to `false`. Historical consumption records are preserved.
+</Warning>
+
+---
+
+## GET /api/materials/status
+
+Check the materials service status.
+
+**Authentication**: None (public endpoint)
+
+### Response
+
+<ResponseField name="status" type="string">
+  Service status
+</ResponseField>
+
+---
+
+## Material Movement Types
+
+The system tracks three types of material movements:
+
+<CardGroup cols={3}>
+  <Card title="ENTRADA" icon="arrow-down-to-line">
+    Stock received from suppliers or production
+  </Card>
+  
+  <Card title="AJUSTE" icon="sliders">
+    Manual adjustments (corrections, damage, theft)
+  </Card>
+  
+  <Card title="CONSUMO" icon="arrow-up-from-line">
+    Materials consumed by work orders (automatic)
+  </Card>
+</CardGroup>
+
+<Note>
+  `CONSUMO` movements are created automatically when materials are consumed via the work orders endpoint. Use the `/adjust-stock` endpoint for `ENTRADA` and `AJUSTE` movements.
+</Note>

@@ -1,0 +1,465 @@
+---
+title: 'Authentication'
+description: 'JWT authentication in DRAIT Mini-MES API'
+---
+
+## Overview
+
+DRAIT Mini-MES uses **JWT (JSON Web Token)** authentication for securing API endpoints. All endpoints except `/api/auth/login` and `/api/auth/status` require a valid JWT token in the request header.
+
+<Info>
+  The authentication system is implemented in `apps/backend/src/modules/auth/` and uses NestJS guards for protection.
+</Info>
+
+## Login
+
+To authenticate, send your credentials to the login endpoint.
+
+### Endpoint
+
+```bash
+POST /api/auth/login
+```
+
+<Warning>
+  This endpoint is rate-limited to **5 requests per minute per IP address** to prevent brute-force attacks.
+</Warning>
+
+### Request Body
+
+<ParamField body="email" type="string" required>
+  User's email address. Must be a valid email format.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password. Minimum 6 characters.
+</ParamField>
+
+### Example Request
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST http://your-domain/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@company.com",
+    "password": "securepassword"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('http://your-domain/api/auth/login', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    email: 'user@company.com',
+    password: 'securepassword',
+  }),
+});
+
+const data = await response.json();
+console.log(data.accessToken);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    'http://your-domain/api/auth/login',
+    json={
+        'email': 'user@company.com',
+        'password': 'securepassword'
+    }
+)
+
+data = response.json()
+print(data['accessToken'])
+```
+
+</CodeGroup>
+
+### Response
+
+<ResponseField name="accessToken" type="string">
+  JWT token for authentication. Valid for the duration specified in `JWT_EXPIRES_IN` (default: 8 hours).
+</ResponseField>
+
+<ResponseField name="user" type="object">
+  Authenticated user information.
+  
+  <ResponseField name="user.id" type="string">
+    User's unique identifier (UUID)
+  </ResponseField>
+  
+  <ResponseField name="user.companyId" type="string">
+    User's company identifier (UUID)
+  </ResponseField>
+  
+  <ResponseField name="user.fullName" type="string">
+    User's full name
+  </ResponseField>
+  
+  <ResponseField name="user.email" type="string">
+    User's email address
+  </ResponseField>
+  
+  <ResponseField name="user.role" type="string">
+    User's role: `OPERARIO`, `SUPERVISOR`, `DUENO`, or `ADMIN`
+  </ResponseField>
+  
+  <ResponseField name="user.companyName" type="string">
+    Name of the user's company
+  </ResponseField>
+</ResponseField>
+
+### Example Response
+
+```json
+{
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhYmMxMjMiLCJlbWFpbCI6InVzZXJAY29tcGFueS5jb20iLCJyb2xlIjoiRFVFTk8iLCJjb21wYW55SWQiOiJ4eXo3ODkiLCJmdWxsTmFtZSI6Ikp1YW4gR2FyY8OtYSIsImlhdCI6MTYzMjQ4NTIwMCwiZXhwIjoxNjMyNTE0MDAwfQ.signature",
+  "user": {
+    "id": "abc123-uuid",
+    "companyId": "xyz789-uuid",
+    "fullName": "Juan García",
+    "email": "user@company.com",
+    "role": "DUENO",
+    "companyName": "Taller Industrial SA"
+  }
+}
+```
+
+### Error Responses
+
+**Invalid credentials (401)**
+
+```json
+{
+  "statusCode": 401,
+  "message": "Credenciales invalidas",
+  "error": "Unauthorized"
+}
+```
+
+**Rate limit exceeded (429)**
+
+```json
+{
+  "statusCode": 429,
+  "message": "ThrottlerException: Too Many Requests"
+}
+```
+
+**Validation error (400)**
+
+```json
+{
+  "statusCode": 400,
+  "message": [
+    "email must be an email",
+    "password must be longer than or equal to 6 characters"
+  ],
+  "error": "Bad Request"
+}
+```
+
+## JWT Token Structure
+
+The JWT token contains a signed payload with the following claims:
+
+### Token Payload
+
+```json
+{
+  "sub": "abc123-uuid",
+  "email": "user@company.com",
+  "role": "DUENO",
+  "companyId": "xyz789-uuid",
+  "fullName": "Juan García",
+  "iat": 1632485200,
+  "exp": 1632514000
+}
+```
+
+<ParamField body="sub" type="string">
+  Subject - User's unique identifier (UUID)
+</ParamField>
+
+<ParamField body="email" type="string">
+  User's email address
+</ParamField>
+
+<ParamField body="role" type="string">
+  User's role: `OPERARIO`, `SUPERVISOR`, `DUENO`, or `ADMIN`
+</ParamField>
+
+<ParamField body="companyId" type="string">
+  Company identifier for multi-tenancy isolation
+</ParamField>
+
+<ParamField body="fullName" type="string">
+  User's full name for display purposes
+</ParamField>
+
+<ParamField body="iat" type="number">
+  Issued At - Unix timestamp when the token was created
+</ParamField>
+
+<ParamField body="exp" type="number">
+  Expiration - Unix timestamp when the token expires
+</ParamField>
+
+<Info>
+  The JWT payload is defined in `apps/backend/src/common/auth/jwt-user.interface.ts` and created in `auth.service.ts:47-53`.
+</Info>
+
+## Using the Token
+
+Once you have obtained a token, include it in the `Authorization` header of all subsequent requests:
+
+```http
+Authorization: Bearer <your-access-token>
+```
+
+### Example Authenticated Request
+
+<CodeGroup>
+
+```bash cURL
+curl -X GET http://your-domain/api/auth/me \
+  -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+```
+
+```javascript JavaScript
+const response = await fetch('http://your-domain/api/auth/me', {
+  method: 'GET',
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+  },
+});
+
+const user = await response.json();
+```
+
+```python Python
+import requests
+
+headers = {
+    'Authorization': f'Bearer {access_token}'
+}
+
+response = requests.get(
+    'http://your-domain/api/auth/me',
+    headers=headers
+)
+
+user = response.json()
+```
+
+</CodeGroup>
+
+## Token Expiration
+
+JWT tokens expire after the duration specified in the `JWT_EXPIRES_IN` environment variable:
+
+- **Default**: 8 hours (`8h`)
+- **Configurable** in `.env` file
+
+<Note>
+  When a token expires, you will receive a 401 Unauthorized error. The client should redirect the user to log in again.
+</Note>
+
+### Token Expiration Error
+
+```json
+{
+  "statusCode": 401,
+  "message": "Sesion expirada o token invalido",
+  "error": "Unauthorized"
+}
+```
+
+## Get Current User
+
+Retrieve information about the currently authenticated user.
+
+### Endpoint
+
+```bash
+GET /api/auth/me
+```
+
+**Requires:** JWT Authentication
+
+### Example Request
+
+```bash cURL
+curl -X GET http://your-domain/api/auth/me \
+  -H "Authorization: Bearer <your-access-token>"
+```
+
+### Response
+
+```json
+{
+  "id": "abc123-uuid",
+  "companyId": "xyz789-uuid",
+  "fullName": "Juan García",
+  "email": "user@company.com",
+  "role": "DUENO",
+  "companyName": "Taller Industrial SA"
+}
+```
+
+<Info>
+  This endpoint extracts the user ID and company ID from the JWT token payload and fetches the latest user data from the database (auth.service.ts:84-108).
+</Info>
+
+## Logout
+
+The logout endpoint is provided for consistency but does not invalidate the token server-side (JWT is stateless).
+
+### Endpoint
+
+```bash
+POST /api/auth/logout
+```
+
+**Requires:** JWT Authentication
+
+### Response
+
+```json
+{
+  "success": true
+}
+```
+
+<Warning>
+  Client applications should delete the stored token from localStorage or session storage after logout. The token remains valid until it expires.
+</Warning>
+
+## Authentication Guard
+
+The API uses `JwtAuthGuard` to protect endpoints. This guard:
+
+1. Extracts the token from the `Authorization: Bearer <token>` header
+2. Verifies the token signature using the `JWT_SECRET`
+3. Checks if the token has expired
+4. Attaches the decoded payload to `request.user`
+
+Implemented in `apps/backend/src/common/auth/jwt-auth.guard.ts`.
+
+### Authentication Errors
+
+**Missing or malformed token**
+
+```json
+{
+  "statusCode": 401,
+  "message": "Token ausente o invalido",
+  "error": "Unauthorized"
+}
+```
+
+**Expired or invalid token**
+
+```json
+{
+  "statusCode": 401,
+  "message": "Sesion expirada o token invalido",
+  "error": "Unauthorized"
+}
+```
+
+## Role-Based Access Control
+
+In addition to authentication, many endpoints require specific roles. The API uses `RolesGuard` to enforce role-based permissions.
+
+### User Roles
+
+| Role | Description | Access Level |
+|------|-------------|-------------|
+| `OPERARIO` | Operator | Can execute assigned work orders |
+| `SUPERVISOR` | Supervisor | Can manage work orders, resources, and view reports |
+| `DUENO` | Owner | Full access to company data, user management |
+| `ADMIN` | Administrator | System-wide access (multi-company) |
+
+<Info>
+  The system also supports legacy role names: `OPERATOR` (maps to `OPERARIO`) and `OWNER` (maps to `DUENO`).
+</Info>
+
+### Permission Error
+
+If you attempt to access an endpoint without the required role:
+
+```json
+{
+  "statusCode": 403,
+  "message": "No tenes permisos para esta accion",
+  "error": "Forbidden"
+}
+```
+
+## Security Best Practices
+
+### Strong JWT Secret
+
+<Warning>
+  Always use a strong, random JWT secret in production. The system will refuse to start if you use a weak secret like `change_this_secret`, `secret`, `changeme`, or `jwt_secret`.
+</Warning>
+
+Generate a secure secret:
+
+```bash
+# Generate a random 32-character secret
+openssl rand -base64 32
+```
+
+### Token Storage
+
+The DRAIT frontend stores the JWT token in `localStorage` under the key `drait.session`:
+
+```javascript
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "user": { ... }
+}
+```
+
+<Note>
+  Consider using `httpOnly` cookies for enhanced security in production deployments to prevent XSS attacks.
+</Note>
+
+### Account Status
+
+Authentication automatically verifies:
+
+- User account is active (`isActive: true`)
+- User's company is active (`company.isActive: true`)
+
+Inactive users cannot obtain tokens, and existing tokens from deactivated users will fail the `/me` endpoint check.
+
+### Audit Logging
+
+All login attempts are automatically logged to the audit system with:
+
+- Entity type: `AUTH`
+- Action: `LOGIN`
+- User ID and company ID
+- Email address
+
+Implemented in auth.service.ts:60-69.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Work Orders API" icon="code" href="/api/work-orders">
+    Explore work order management endpoints
+  </Card>
+  <Card title="Users API" icon="users" href="/api/users">
+    Learn about user management endpoints
+  </Card>
+</CardGroup>

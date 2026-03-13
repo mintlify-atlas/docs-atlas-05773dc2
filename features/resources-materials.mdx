@@ -1,0 +1,618 @@
+---
+title: Resources & Materials
+description: Manage production resources, plant capacity, and inventory
+icon: cogs
+---
+
+# Resources and Materials Management
+
+DRAIT Mini-MES tracks two critical production inputs: **Resources** (machines and human capacity) and **Materials** (consumable inventory). This module enables capacity planning, resource allocation, and inventory control.
+
+## Resources
+
+Resources represent production capacity nodes in the plant:
+
+- **HUMANO** — Human operators with specific skills
+- **MAQUINA** — Physical equipment or workstations
+
+### Resource Status
+
+Each resource has an operational status:
+
+<CardGroup cols={4}>
+  <Card title="DISPONIBLE" icon="check">
+    Available for new work assignments.
+  </Card>
+  
+  <Card title="OCUPADO" icon="cog">
+    Currently assigned to active work orders.
+  </Card>
+  
+  <Card title="MANTENIMIENTO" icon="wrench">
+    Undergoing maintenance, temporarily unavailable.
+  </Card>
+  
+  <Card title="FUERA_DE_LINEA" icon="times">
+    Offline, out of service.
+  </Card>
+</CardGroup>
+
+### Creating Resources
+
+<Steps>
+  <Step title="Navigate to Resources">
+    Go to **Configuration** → **Resources and Capacity**.
+  </Step>
+  
+  <Step title="Click '+ Nueva Estación'">
+    Opens the resource creation modal.
+  </Step>
+  
+  <Step title="Select classification">
+    Choose resource type:
+    - **HUMANO (Persona / Puesto)**: Operator role or person
+    - **MAQUINA (Física / Virtual)**: Equipment or station
+  </Step>
+  
+  <Step title="Fill details">
+    - **Nombre del Recurso**: Resource identifier (e.g., "Torno CNC 1", "Soldador A")
+    - **Area / Sector Planta**: Plant area/department
+    - **Notas u Observaciones**: Maintenance notes, characteristics
+  </Step>
+  
+  <Step title="Submit">
+    Click "Asignar Alta al Taller" to create the resource.
+  </Step>
+</Steps>
+
+### Managing Resource Status
+
+Resource status can be updated in real-time:
+
+1. Locate resource in the table
+2. Use the status dropdown in the "Disponibilidad" column
+3. Select new status:
+   - DISPONIBLE
+   - OCUPADO
+   - MANTENIMIENTO
+   - FUERA_DE_LINEA
+4. Status updates immediately
+
+<Info>
+  Status changes are tracked in audit logs for maintenance history and utilization analysis.
+</Info>
+
+### Resource Data Structure
+
+```prisma
+model Resource {
+  id            String
+  companyId     String
+  type          ResourceType    // HUMANO | MAQUINA
+  name          String
+  sector        String?
+  status        ResourceStatus  // DISPONIBLE | OCUPADO | MANTENIMIENTO | FUERA_DE_LINEA
+  notes         String?
+  isActive      Boolean
+  createdAt     DateTime
+  updatedAt     DateTime
+  
+  // Relations
+  assignments   WorkOrderAssignment[]  // Current and historical assignments
+  operationLogs OperationLog[]         // Event history
+}
+```
+
+### Resource Assignment to Work Orders
+
+Resources are linked to work orders through assignments:
+
+```prisma
+model WorkOrderAssignment {
+  id           String
+  companyId    String
+  workOrderId  String
+  resourceId   String      // The assigned resource
+  userId       String?     // If HUMANO, the operator's user account
+  assignedAt   DateTime
+  unassignedAt DateTime?   // Null if still active
+  
+  workOrder    WorkOrder
+  resource     Resource
+  user         User?
+}
+```
+
+**Assignment workflow:**
+
+<Steps>
+  <Step title="Create HUMANO resources">
+    Set up human resource with name matching operator's full name.
+  </Step>
+  
+  <Step title="Assign in work order management">
+    When assigning an operator to a work order:
+    - System finds matching resource by name
+    - Creates assignment linking resource + user
+    - Updates resource status to OCUPADO
+  </Step>
+  
+  <Step title="Track utilization">
+    Assignments enable:
+    - Operator workload reports
+    - Resource capacity analysis
+    - Work order staffing visibility
+  </Step>
+</Steps>
+
+<Warning>
+  For human resources, the resource name must match the operator's `fullName` exactly for automatic assignment linking.
+</Warning>
+
+### Filtering Resources
+
+The resource list supports:
+
+- **Text search**: Filter by name or sector
+- **Type filter**: Show only HUMANO or MAQUINA
+
+---
+
+## Materials
+
+Materials represent consumable inventory used in production.
+
+### Material Properties
+
+<CardGroup cols={2}>
+  <Card title="Core Fields" icon="database">
+    ```typescript
+    interface Material {
+      id: string;
+      name: string;        // Material name
+      category?: string;   // Optional grouping
+      unit: string;        // Unit of measure (kg, m, u, etc.)
+      unitCost: number;    // Current cost per unit
+      stock: number;       // Available quantity
+      isActive: boolean;
+    }
+    ```
+  </Card>
+  
+  <Card title="Tracking" icon="chart-line">
+    Each material tracks:
+    - Current stock level
+    - Unit cost (for costing calculations)
+    - Movement history (entries and consumption)
+    - Category for organization
+    - Active status
+  </Card>
+</CardGroup>
+
+### Creating Materials
+
+<Steps>
+  <Step title="Open Materials page">
+    Navigate to **Warehouse** → **Materials**.
+  </Step>
+  
+  <Step title="Click '+ Nuevo Material'">
+    Opens the material creation form.
+  </Step>
+  
+  <Step title="Fill identification">
+    - **Nombre**: Material name (e.g., "Acero A36 6mm")
+    - **Categoría**: Optional category (e.g., "Chapas", "Electrodos")
+  </Step>
+  
+  <Step title="Set parameters">
+    - **Unidad**: Unit of measure (kg, m, u, l, etc.)
+    - **Costo Inicial ($)**: Initial cost per unit
+    - **Stock Físico**: Starting inventory quantity
+  </Step>
+  
+  <Step title="Create">
+    Click "Crear Material" to add to inventory.
+  </Step>
+</Steps>
+
+### Stock Adjustments
+
+Materials support manual stock adjustments for:
+
+- Physical inventory counts
+- Stock corrections
+- Incoming shipments
+
+**Adjustment process:**
+
+1. Locate material in table
+2. Enter quantity in adjustment input:
+   - **Positive value**: Add to stock (ENTRADA)
+   - **Negative value**: Reduce stock (AJUSTE)
+3. Click "Ajustar" button
+4. System creates `MaterialMovement` record
+5. Stock updates immediately
+
+<Tabs>
+  <Tab title="Movement Types">
+    ```typescript
+    enum MaterialMovementType {
+      ENTRADA     // Stock entry (purchase, return)
+      AJUSTE      // Manual adjustment (correction)
+      CONSUMO     // Consumption (used in production)
+    }
+    ```
+  </Tab>
+  
+  <Tab title="Movement Record">
+    ```prisma
+    model MaterialMovement {
+      id          String
+      companyId   String
+      materialId  String
+      type        MaterialMovementType
+      quantity    Decimal         // Signed: + or -
+      unitCost    Decimal         // Cost at movement time
+      note        String?
+      createdAt   DateTime
+      
+      material    Material
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Material Consumption
+
+When operators use materials in production, consumption is tracked through work orders:
+
+```prisma
+model MaterialConsumption {
+  id               String
+  companyId        String
+  workOrderId      String
+  materialId       String
+  createdByUserId  String?
+  quantity         Decimal
+  unitCostSnapshot Decimal    // Cost frozen at consumption time
+  note             String?
+  consumedAt       DateTime
+  createdAt        DateTime
+  
+  workOrder        WorkOrder
+  material         Material
+  createdByUser    User?
+}
+```
+
+**Key features:**
+
+- **Cost snapshot**: `unitCostSnapshot` preserves material cost at consumption time for accurate historical costing
+- **Automatic inventory**: Stock reduces automatically
+- **Work order linking**: Consumption attributed to specific work order
+- **Traceability**: Track which operator consumed materials when
+
+<Info>
+  Cost snapshotting ensures accurate work order costing even if material prices change after consumption.
+</Info>
+
+### Stock Visibility
+
+The materials table displays:
+
+- **Stock level** with color coding:
+  - 🔴 Red: Stock ≤ 0 (out of stock)
+  - 🟢 Green: Stock > 0 (available)
+- **Unit cost**: Current cost per unit
+- **Category badge**: Optional grouping
+- **Quick adjustment**: Inline adjustment controls
+
+### Filtering and Sorting
+
+<CardGroup cols={2}>
+  <Card title="Search" icon="search">
+    Real-time filter by:
+    - Material name
+    - Category
+  </Card>
+  
+  <Card title="Category Filter" icon="filter">
+    Dropdown showing all unique categories. Dynamically populated from existing materials.
+  </Card>
+  
+  <Card title="Sort Columns" icon="sort">
+    Click headers to sort by:
+    - **Nombre**: Material name
+    - **Categoría**: Category grouping
+    - **Stock Dispon.**: Available stock
+    - **Costo Unit.**: Unit cost
+  </Card>
+  
+  <Card title="Low Stock Alert" icon="exclamation-triangle">
+    Materials with stock ≤ 0 display in red for quick identification of stockouts.
+  </Card>
+</CardGroup>
+
+### Deletion Rules
+
+Materials can only be deleted if:
+
+- No movement history exists
+- No consumption records exist
+- Not referenced in any work orders
+
+The "Eliminar" button is disabled if material is in use.
+
+<Warning>
+  Deletion removes material permanently. Deactivate (future feature) or adjust to zero stock instead to preserve history.
+</Warning>
+
+---
+
+## User and Settings Management
+
+### User Accounts
+
+<Note>
+  This section is only visible to users with role **ADMIN** or **DUENO**.
+</Note>
+
+The Resources page includes advanced user management for administrators:
+
+#### Creating Users
+
+<Steps>
+  <Step title="Click '+ Invitar'">
+    Opens the user creation modal.
+  </Step>
+  
+  <Step title="Fill credentials">
+    - **Nombre Completo DNI**: Full name
+    - **Login (Email)**: Email for authentication
+    - **Contraseña Temporal**: Initial password (min 6 chars)
+    - **Perfil de Seguridad**: User role
+  </Step>
+  
+  <Step title="Select role">
+    - **OPERARIO**: Plant operator (limited view)
+    - **SUPERVISOR**: Production management access
+    - **ADMINISTRADOR**: Full configuration access
+  </Step>
+  
+  <Step title="Grant access">
+    Click "Otorgar Acceso" to create the user account.
+  </Step>
+</Steps>
+
+#### Managing Existing Users
+
+The user table provides inline editing:
+
+<CardGroup cols={2}>
+  <Card title="Profile Updates" icon="user-edit">
+    Edit directly in table:
+    - Full name
+    - Email address
+    
+    Click "Guardar" to save changes.
+  </Card>
+  
+  <Card title="Role Changes" icon="shield">
+    Change user role via dropdown:
+    - SUPERVISOR
+    - OPERARIO
+    - ADMIN
+    
+    Changes apply immediately.
+    
+    <Warning>
+      Owner (DUENO) role cannot be changed.
+    </Warning>
+  </Card>
+  
+  <Card title="Password Reset" icon="key">
+    1. Enter new password in inline input
+    2. Click "Fijar" button
+    3. Password updates immediately
+    
+    Minimum 6 characters required.
+  </Card>
+  
+  <Card title="Suspend/Enable" icon="ban">
+    - **Suspender**: Deactivates user login
+    - **Habilitar**: Reactivates user
+    
+    Owner account cannot be suspended.
+  </Card>
+</CardGroup>
+
+### Company Settings
+
+Administrators configure global business rules:
+
+#### Deviation Thresholds
+
+Set alert levels for time and cost overruns:
+
+```typescript
+interface CompanySettings {
+  // Time deviation alerts
+  warningTimeDeviationPct: number;   // e.g., 20 (20% over estimated time)
+  criticalTimeDeviationPct: number;  // e.g., 40 (40% over)
+  
+  // Cost deviation alerts
+  warningCostDeviationPct: number;   // e.g., 15 (15% over estimated cost)
+  criticalCostDeviationPct: number;  // e.g., 30 (30% over)
+  
+  // Work order defaults
+  requireDeliveryChecklist: boolean; // Enforce checklist on delivery
+  workOrderCodePrefix: string;       // Code format prefix
+  defaultWorkOrderPriority: number;  // Default priority (1-5)
+}
+```
+
+**Configuration sections:**
+
+<Tabs>
+  <Tab title="Alert Limits">
+    Set percentage thresholds that trigger warnings and critical alerts in:
+    - Dashboard KPIs
+    - Productivity reports
+    - Work order detail views
+    
+    Example:
+    - Warning at 20% time overrun
+    - Critical at 40% time overrun
+  </Tab>
+  
+  <Tab title="Production Metadata">
+    Configure work order behavior:
+    - **Formato Prefijo Ordenes**: Code prefix (e.g., "OT-")
+    - **Prioridad Inicial Defecto**: Default priority level (1-5)
+    - **Requerir Checklist**: Enforce delivery checklist requirement
+  </Tab>
+  
+  <Tab title="Apply Changes">
+    Click "Aplicar Reglas Globales" to:
+    - Save settings to database
+    - Invalidate report caches
+    - Recalculate alert states
+    
+    Changes apply across all users immediately.
+  </Tab>
+</Tabs>
+
+### Audit History
+
+View recent system activity:
+
+- Last 40 audit log entries
+- Shows entity type, action, user, and timestamp
+- Filters available for entity type and action
+- Expandable detail showing before/after state
+
+See [Audit & Traceability](/features/audit-traceability) for full audit documentation.
+
+### Access Control Matrix
+
+Visualize permission structure by role:
+
+- Displays modules accessible to each role
+- Shows read, create, update, delete permissions
+- Auto-generated from authorization configuration
+- Helps understand role capabilities
+
+---
+
+## Best Practices
+
+<Card title="Resource Management" icon="lightbulb">
+  **Resources:**
+  - Create HUMANO resources for each operator position
+  - Match resource names exactly to user full names for auto-linking
+  - Use sectors to organize plant layout logically
+  - Update status to MANTENIMIENTO during maintenance windows
+  - Track resource notes for maintenance history
+  
+  **Materials:**
+  - Set realistic unit costs for accurate work order costing
+  - Use categories consistently for reporting
+  - Perform regular stock counts and adjust as needed
+  - Monitor red (low stock) materials proactively
+  - Don't delete materials with history—adjust to zero instead
+  
+  **Users & Settings:**
+  - Use strong temporary passwords, require operators to change
+  - Assign minimum necessary role (principle of least privilege)
+  - Review deviation thresholds quarterly based on actual performance
+  - Enable delivery checklist requirement for quality control
+  - Monitor audit logs regularly for unusual activity
+</Card>
+
+## API Endpoints
+
+<Tabs>
+  <Tab title="Resources">
+    ```typescript
+    // List resources
+    GET /api/resources?type={HUMANO|MAQUINA}
+    
+    // Create resource
+    POST /api/resources
+    Body: { type, name, sector?, status?, notes? }
+    
+    // Update resource (including status)
+    PATCH /api/resources/:id
+    Body: { name?, sector?, status?, notes? }
+    
+    // Delete resource
+    DELETE /api/resources/:id
+    ```
+  </Tab>
+  
+  <Tab title="Materials">
+    ```typescript
+    // List materials
+    GET /api/materials
+    
+    // Create material
+    POST /api/materials
+    Body: { name, category?, unit, unitCost, stock? }
+    
+    // Update material
+    PATCH /api/materials/:id
+    Body: { name?, category?, unitCost?, ... }
+    
+    // Adjust stock
+    POST /api/materials/:id/adjust-stock
+    Body: { quantity, unitCost, note? }
+    
+    // Delete material (restricted)
+    DELETE /api/materials/:id
+    ```
+  </Tab>
+  
+  <Tab title="Users (Admin)">
+    ```typescript
+    // List users
+    GET /api/users?role={ROLE}&active={true|false}
+    
+    // Create user
+    POST /api/users
+    Body: { fullName, email, role, password }
+    
+    // Update profile
+    PATCH /api/users/:id/profile
+    Body: { fullName?, email? }
+    
+    // Change role
+    PATCH /api/users/:id/role
+    Body: { role: 'SUPERVISOR' | 'OPERARIO' | 'ADMIN' }
+    
+    // Reset password
+    PATCH /api/users/:id/password
+    Body: { password }
+    
+    // Toggle active status
+    PATCH /api/users/toggle-active
+    Body: { id }
+    ```
+  </Tab>
+  
+  <Tab title="Settings (Admin)">
+    ```typescript
+    // Get company settings
+    GET /api/companies/settings
+    Response: CompanySettings
+    
+    // Update settings
+    PATCH /api/companies/settings
+    Body: CompanySettings
+    
+    // Get access control matrix
+    GET /api/companies/access-matrix
+    Response: { [role]: { [module]: string[] } }
+    ```
+  </Tab>
+</Tabs>

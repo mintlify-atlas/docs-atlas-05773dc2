@@ -1,0 +1,328 @@
+---
+title: 'Users'
+description: 'User management endpoints for creating and managing system users'
+icon: 'users'
+---
+
+## Overview
+
+User endpoints allow administrators to create, update, and manage users within the system. Access is restricted based on user roles.
+
+<Warning>
+  User management endpoints are restricted to `DUENO` and `ADMIN` roles only.
+</Warning>
+
+---
+
+## GET /api/users
+
+Retrieve all users in the company.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Query Parameters
+
+<ParamField query="role" type="string">
+  Filter by user role: `DUENO`, `SUPERVISOR`, `OPERARIO`, or `ADMIN`
+</ParamField>
+
+<ParamField query="active" type="string">
+  Filter by active status: `true` or `false`
+</ParamField>
+
+### Response
+
+Returns an array of user objects.
+
+<ResponseField name="id" type="string">
+  User's unique identifier
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  User's email address
+</ResponseField>
+
+<ResponseField name="fullName" type="string">
+  User's full name
+</ResponseField>
+
+<ResponseField name="role" type="string">
+  User role: `DUENO`, `SUPERVISOR`, `OPERARIO`, or `ADMIN`
+</ResponseField>
+
+<ResponseField name="isActive" type="boolean">
+  Whether the user account is active
+</ResponseField>
+
+<ResponseField name="companyId" type="string">
+  Associated company ID
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 timestamp of user creation
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string">
+  ISO 8601 timestamp of last update
+</ResponseField>
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.example.com/api/users?role=OPERARIO&active=true" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://api.example.com/api/users?role=OPERARIO&active=true',
+  {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  }
+);
+
+const users = await response.json();
+```
+</CodeGroup>
+
+---
+
+## POST /api/users
+
+Create a new user in the system.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `ADMIN`
+
+### Request Body
+
+<ParamField body="email" type="string" required>
+  User's email address (must be unique within the company)
+</ParamField>
+
+<ParamField body="fullName" type="string" required>
+  User's full name
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  User's password (minimum 6 characters)
+</ParamField>
+
+<ParamField body="role" type="string" required>
+  User role: `DUENO`, `SUPERVISOR`, `OPERARIO`, or `ADMIN`
+</ParamField>
+
+### Response
+
+Returns the created user object.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.example.com/api/users \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "operario@drait.local",
+    "fullName": "Juan Pérez",
+    "password": "SecurePass123!",
+    "role": "OPERARIO"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.example.com/api/users', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    email: 'operario@drait.local',
+    fullName: 'Juan Pérez',
+    password: 'SecurePass123!',
+    role: 'OPERARIO'
+  })
+});
+
+const user = await response.json();
+```
+</CodeGroup>
+
+---
+
+## PATCH /api/users/toggle-active
+
+Toggle a user's active status (activate or deactivate).
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `ADMIN`
+
+### Request Body
+
+<ParamField body="id" type="string" required>
+  User ID to toggle
+</ParamField>
+
+### Response
+
+Returns the updated user object.
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH https://api.example.com/api/users/toggle-active \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"id": "clx1234567890"}'
+```
+</CodeGroup>
+
+---
+
+## PATCH /api/users/:id/role
+
+Update a user's role.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  User ID to update
+</ParamField>
+
+### Request Body
+
+<ParamField body="role" type="string" required>
+  New role: `DUENO`, `SUPERVISOR`, `OPERARIO`, or `ADMIN`
+</ParamField>
+
+### Response
+
+Returns the updated user object.
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH https://api.example.com/api/users/clx1234567890/role \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"role": "SUPERVISOR"}'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  `https://api.example.com/api/users/${userId}/role`,
+  {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ role: 'SUPERVISOR' })
+  }
+);
+
+const user = await response.json();
+```
+</CodeGroup>
+
+---
+
+## PATCH /api/users/:id/profile
+
+Update a user's profile information.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  User ID to update
+</ParamField>
+
+### Request Body
+
+<ParamField body="fullName" type="string">
+  User's full name (max 120 characters)
+</ParamField>
+
+<ParamField body="email" type="string">
+  User's email address
+</ParamField>
+
+### Response
+
+Returns the updated user object.
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH https://api.example.com/api/users/clx1234567890/profile \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fullName": "Juan Carlos Pérez",
+    "email": "juan.perez@drait.local"
+  }'
+```
+</CodeGroup>
+
+---
+
+## PATCH /api/users/:id/password
+
+Update a user's password.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  User ID to update
+</ParamField>
+
+### Request Body
+
+<ParamField body="password" type="string" required>
+  New password (minimum 6 characters)
+</ParamField>
+
+### Response
+
+Returns the updated user object (password hash not included).
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH https://api.example.com/api/users/clx1234567890/password \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"password": "NewSecurePass456!"}'
+```
+</CodeGroup>
+
+<Warning>
+  Password changes are logged in the audit trail for security purposes.
+</Warning>
+
+---
+
+## GET /api/users/status
+
+Check the users service status.
+
+**Authentication**: None (public endpoint)
+
+### Response
+
+<ResponseField name="status" type="string">
+  Service status
+</ResponseField>

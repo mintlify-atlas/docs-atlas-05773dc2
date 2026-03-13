@@ -1,0 +1,465 @@
+---
+title: 'Quotations'
+description: 'Quotation and proposal management endpoints'
+icon: 'file-invoice'
+---
+
+## Overview
+
+Quotation endpoints manage customer quotations, including line items and status tracking. Quotations can be converted into work orders once approved.
+
+---
+
+## GET /api/quotations
+
+Retrieve all quotations with optional filtering.
+
+**Authentication**: Required (JWT)
+
+**Roles**: All authenticated users
+
+### Query Parameters
+
+<ParamField query="status" type="string">
+  Filter by status: `BORRADOR`, `ENVIADO`, `APROBADO`, or `RECHAZADO`
+</ParamField>
+
+<ParamField query="clientId" type="string">
+  Filter by client ID
+</ParamField>
+
+<ParamField query="search" type="string">
+  Search by code, title, or description
+</ParamField>
+
+### Response
+
+Returns an array of quotation objects.
+
+<ResponseField name="id" type="string">
+  Quotation unique identifier
+</ResponseField>
+
+<ResponseField name="companyId" type="string">
+  Associated company ID
+</ResponseField>
+
+<ResponseField name="clientId" type="string">
+  Associated client ID
+</ResponseField>
+
+<ResponseField name="code" type="string">
+  Quotation code (e.g., Q-2026-001)
+</ResponseField>
+
+<ResponseField name="title" type="string">
+  Quotation title
+</ResponseField>
+
+<ResponseField name="description" type="string">
+  Detailed description
+</ResponseField>
+
+<ResponseField name="estimatedTimeMin" type="number">
+  Estimated time in minutes
+</ResponseField>
+
+<ResponseField name="estimatedCost" type="number">
+  Estimated total cost (decimal)
+</ResponseField>
+
+<ResponseField name="estimatedMaterials" type="string">
+  Description of required materials
+</ResponseField>
+
+<ResponseField name="status" type="string">
+  Current status: `BORRADOR`, `ENVIADO`, `APROBADO`, `RECHAZADO`
+</ResponseField>
+
+<ResponseField name="approvedAt" type="string">
+  ISO 8601 timestamp of approval
+</ResponseField>
+
+<ResponseField name="validUntil" type="string">
+  ISO 8601 expiration date
+</ResponseField>
+
+<ResponseField name="attachmentUrl" type="string">
+  URL to attached file (e.g., PDF quotation)
+</ResponseField>
+
+<ResponseField name="items" type="array">
+  Array of quotation line items
+</ResponseField>
+
+<CodeGroup>
+```bash cURL
+curl -X GET "https://api.example.com/api/quotations?status=APROBADO" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  'https://api.example.com/api/quotations?status=APROBADO',
+  {
+    headers: {
+      'Authorization': `Bearer ${accessToken}`
+    }
+  }
+);
+
+const quotations = await response.json();
+```
+</CodeGroup>
+
+---
+
+## GET /api/quotations/:id
+
+Retrieve a specific quotation with all line items.
+
+**Authentication**: Required (JWT)
+
+**Roles**: All authenticated users
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Quotation ID
+</ParamField>
+
+### Response
+
+Returns a quotation object with nested items array.
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.example.com/api/quotations/clx1234567890 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+</CodeGroup>
+
+---
+
+## POST /api/quotations
+
+Create a new quotation with line items.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Request Body
+
+<ParamField body="clientId" type="string" required>
+  Client ID for this quotation
+</ParamField>
+
+<ParamField body="code" type="string" required>
+  Unique quotation code (e.g., Q-2026-001)
+</ParamField>
+
+<ParamField body="title" type="string" required>
+  Quotation title
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  Detailed description
+</ParamField>
+
+<ParamField body="estimatedTimeMin" type="number" required>
+  Estimated time in minutes (minimum 0)
+</ParamField>
+
+<ParamField body="estimatedCost" type="number" required>
+  Estimated total cost (minimum 0)
+</ParamField>
+
+<ParamField body="estimatedMaterials" type="string">
+  Description of required materials
+</ParamField>
+
+<ParamField body="status" type="string">
+  Initial status (default: `BORRADOR`)
+</ParamField>
+
+<ParamField body="approvedAt" type="string">
+  ISO 8601 approval date
+</ParamField>
+
+<ParamField body="validUntil" type="string">
+  ISO 8601 expiration date
+</ParamField>
+
+<ParamField body="items" type="array" required>
+  Array of quotation line items
+  
+  <Expandable title="Item object properties">
+    <ParamField body="description" type="string" required>
+      Item description
+    </ParamField>
+    
+    <ParamField body="quantity" type="number" required>
+      Quantity (minimum 0.001)
+    </ParamField>
+    
+    <ParamField body="unit" type="string" required>
+      Unit of measurement (e.g., "kg", "m", "pcs")
+    </ParamField>
+    
+    <ParamField body="estimatedUnitCost" type="number" required>
+      Cost per unit (minimum 0)
+    </ParamField>
+    
+    <ParamField body="estimatedHoursMin" type="number">
+      Estimated hours in minutes for this item
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Response
+
+Returns the created quotation object with items.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.example.com/api/quotations \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "clientId": "clx_client_123",
+    "code": "Q-2026-042",
+    "title": "Custom Metal Fabrication",
+    "description": "Fabrication of steel frames for industrial building",
+    "estimatedTimeMin": 4800,
+    "estimatedCost": 15000.00,
+    "estimatedMaterials": "Steel beams, welding rods, paint",
+    "validUntil": "2026-04-30T23:59:59Z",
+    "items": [
+      {
+        "description": "Steel I-beams 6m",
+        "quantity": 12,
+        "unit": "pcs",
+        "estimatedUnitCost": 850.00,
+        "estimatedHoursMin": 2400
+      },
+      {
+        "description": "Welding and assembly",
+        "quantity": 1,
+        "unit": "job",
+        "estimatedUnitCost": 4800.00,
+        "estimatedHoursMin": 2400
+      }
+    ]
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://api.example.com/api/quotations', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    clientId: 'clx_client_123',
+    code: 'Q-2026-042',
+    title: 'Custom Metal Fabrication',
+    description: 'Fabrication of steel frames',
+    estimatedTimeMin: 4800,
+    estimatedCost: 15000.00,
+    items: [
+      {
+        description: 'Steel I-beams 6m',
+        quantity: 12,
+        unit: 'pcs',
+        estimatedUnitCost: 850.00
+      }
+    ]
+  })
+});
+
+const quotation = await response.json();
+```
+</CodeGroup>
+
+---
+
+## PATCH /api/quotations/:id
+
+Update an existing quotation.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Quotation ID to update
+</ParamField>
+
+### Request Body
+
+All fields are optional. Only include fields to update.
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH https://api.example.com/api/quotations/clx1234567890 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Updated Custom Metal Fabrication",
+    "estimatedCost": 16500.00
+  }'
+```
+</CodeGroup>
+
+---
+
+## PATCH /api/quotations/:id/status
+
+Update quotation status.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Quotation ID
+</ParamField>
+
+### Request Body
+
+<ParamField body="status" type="string" required>
+  New status: `BORRADOR`, `ENVIADO`, `APROBADO`, or `RECHAZADO`
+</ParamField>
+
+### Response
+
+Returns the updated quotation object.
+
+<CodeGroup>
+```bash cURL
+curl -X PATCH https://api.example.com/api/quotations/clx1234567890/status \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "APROBADO"}'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  `https://api.example.com/api/quotations/${quotationId}/status`,
+  {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ status: 'APROBADO' })
+  }
+);
+```
+</CodeGroup>
+
+---
+
+## DELETE /api/quotations/:id
+
+Delete a quotation.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Quotation ID to delete
+</ParamField>
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE https://api.example.com/api/quotations/clx1234567890 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+</CodeGroup>
+
+---
+
+## POST /api/quotations/:id/attachment
+
+Upload an attachment file to a quotation (e.g., PDF).
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Quotation ID
+</ParamField>
+
+### Request Body
+
+Multipart form data with a file field.
+
+<ParamField body="file" type="file" required>
+  File to upload (max 10MB)
+</ParamField>
+
+### Response
+
+Returns the quotation with updated `attachmentUrl`.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.example.com/api/quotations/clx1234567890/attachment \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -F "file=@/path/to/quotation.pdf"
+```
+</CodeGroup>
+
+<Warning>
+  Maximum file size is 10MB. Supported formats include PDF, images, and common document types.
+</Warning>
+
+---
+
+## DELETE /api/quotations/:id/attachment
+
+Remove the attachment from a quotation.
+
+**Authentication**: Required (JWT)
+
+**Roles**: `DUENO`, `SUPERVISOR`, `ADMIN`
+
+### Path Parameters
+
+<ParamField path="id" type="string" required>
+  Quotation ID
+</ParamField>
+
+<CodeGroup>
+```bash cURL
+curl -X DELETE https://api.example.com/api/quotations/clx1234567890/attachment \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+</CodeGroup>
+
+---
+
+## GET /api/quotations/status
+
+Check the quotations service status.
+
+**Authentication**: None (public endpoint)
+
+### Response
+
+<ResponseField name="status" type="string">
+  Service status
+</ResponseField>

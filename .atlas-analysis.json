@@ -1,0 +1,112 @@
+{
+  "projectType": "saas",
+  "projectName": "DRAIT Mini-MES",
+  "projectDescription": "Web-based Manufacturing Execution System for metalworking and welding workshops with real-time traceability and production management",
+  "theme": "linden",
+  "primaryColor": "#0066CC",
+  "lightColor": "#4A90E2",
+  "darkColor": "#003D7A",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "architecture"
+            ]
+          },
+          {
+            "group": "User Guides",
+            "pages": [
+              "guides/owner-manual",
+              "guides/supervisor-manual",
+              "guides/operator-manual"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/work-orders",
+              "features/clients-quotations",
+              "features/resources-materials",
+              "features/reports-analytics",
+              "features/audit-traceability"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/docker-setup",
+              "deployment/environment-variables",
+              "deployment/database-setup",
+              "deployment/security"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api/introduction",
+              "api/authentication"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api/auth",
+              "api/users",
+              "api/clients",
+              "api/quotations",
+              "api/work-orders",
+              "api/resources",
+              "api/materials",
+              "api/operation-logs",
+              "api/reports",
+              "api/audit"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Role-based access control with 4 user levels (Owner, Supervisor, Operator, Admin)",
+    "Complete work order lifecycle management from quotation to delivery",
+    "Real-time resource and material tracking with inventory management",
+    "Operation logging and full audit trail for compliance",
+    "Dashboard with KPIs, productivity reports and charts",
+    "Multi-tenant architecture with company isolation"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/login",
+    "GET /api/auth/me",
+    "GET /api/work-orders",
+    "POST /api/work-orders",
+    "PATCH /api/work-orders/:id/status",
+    "POST /api/work-orders/:id/events",
+    "POST /api/work-orders/:id/consumptions",
+    "GET /api/clients",
+    "POST /api/clients",
+    "GET /api/quotations",
+    "POST /api/quotations",
+    "PATCH /api/quotations/:id/status",
+    "GET /api/resources",
+    "POST /api/resources",
+    "GET /api/materials",
+    "POST /api/materials/:id/adjust-stock",
+    "GET /api/reports/dashboard",
+    "GET /api/reports/productivity",
+    "GET /api/operation-logs",
+    "GET /api/audit-logs",
+    "GET /api/users",
+    "POST /api/users"
+  ]
+}
